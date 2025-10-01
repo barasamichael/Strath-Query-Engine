@@ -328,48 +328,43 @@ class IntentRecognizer:
 
     def _check_if_off_topic(self, query: str) -> tuple[bool, TopicCategory]:
         """Check if a query is off-topic (not related to Strathmore University)."""
-        # List of terms that are definitely on-topic for Strathmore
-        strathmore_terms = {
-            "strathmore",
-            "university",
-            "college",
-            "school",
-            "student",
-            "campus",
-            "course",
-            "faculty",
-            "admission",
-            "graduation",
-            "semester",
-            "lecturer",
-            "library",
-            "hostel",
-            "exam",
-            "fee",
-            "tuition",
-            "scholarship",
-            "dean",
-            "academic",
-            "handbook",
-            "policy",
-            "regulation",
-            "curriculum",
-        }
-
-        # Check if query contains any Strathmore-related terms
-        query_words = set(re.findall(r"\b\w+\b", query.lower()))
-        has_strathmore_terms = any(
-            term in query_words or term in query.lower()
-            for term in strathmore_terms
-        )
+        # Assume queries are ON-topic by default
+        is_off_topic = False
 
         # Determine topic
         topic = self._determine_topic(query)
 
-        # If no Strathmore terms and topic is GENERAL or OTHER, consider off-topic
-        is_off_topic = not has_strathmore_terms and topic in [
-            TopicCategory.GENERAL,
-            TopicCategory.OTHER,
+        # List of terms that are definitely off-topic
+        off_topic_indicators = [
+            "NASA", "SpaceX", "World Cup", "Olympics",
+            "United Nations", "President of USA", "European Union",
+            "Marvel", "Disney", "Hollywood", "Bitcoin", "NFT",
+            "PlayStation", "Xbox", "Nintendo", "Apple", "Google",
+            "Tesla", "Amazon", "Facebook"
         ]
+
+        # Education related terms that indicate on-topic nature
+        education_terms = [
+            "student", "university", "college", "course", "professor",
+            "lecturer", "class", "degree", "education", "academic",
+            "school", "faculty", "study", "campus", "learning",
+            "dean", "curriculum", "semester", "exam", "library",
+            "assignment", "graduation", "admission", "department"
+        ]
+
+        query_lower = query.lower()
+
+        # Check for explicit off-topic indicators
+        has_off_topic_terms = any(
+            term.lower() in query_lower for term in off_topic_indicators)
+
+        # Check for education-related terms
+        has_education_terms = any(
+            term in query_lower for term in education_terms)
+
+        # If query has explicit off-topic terms AND doesn't have education terms,
+        # mark as off-topic
+        if has_off_topic_terms and not has_education_terms:
+            is_off_topic = True
 
         return is_off_topic, topic

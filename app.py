@@ -1,5 +1,3 @@
-
-# app.py
 import logging
 import uvicorn
 from api.endpoints.main import app

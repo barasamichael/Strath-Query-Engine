@@ -10,9 +10,9 @@ import pandas as pd
 from tqdm import tqdm
 
 from config.settings import ROOT_DIR
-from services.retrieval.vector_db import VectorDBService
-from services.generation.intent_recognizer import IntentRecognizer
-from services.generation.response_generator import ResponseGenerator
+from services.vector_db import VectorDBService
+from services.intent_recognizer import IntentRecognizer
+from services.response_generator import ResponseGenerator
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO)

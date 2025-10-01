@@ -13,7 +13,7 @@ from tqdm import tqdm
 from sklearn.metrics.pairwise import cosine_similarity
 
 from config.settings import settings, ROOT_DIR
-from services.retrieval.embeddings import EmbeddingService
+from services.embeddings import EmbeddingService
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO)
@@ -73,7 +73,8 @@ class SimpleVectorDB:
     def save(self, path):
         """Save the database to a file."""
         with open(path, "wb") as f:
-            pickle.dump({"vectors": self.vectors, "metadata": self.metadata}, f)
+            pickle.dump({"vectors": self.vectors,
+                        "metadata": self.metadata}, f)
 
     def load(self, path):
         """Load the database from a file."""
@@ -214,7 +215,8 @@ class VectorDBService:
         # Prepare filter if needed
         filter_fn = None
         if filter_doc_id:
-            filter_fn = lambda metadata: metadata.get("doc_id") == filter_doc_id
+            def filter_fn(metadata): return metadata.get(
+                "doc_id") == filter_doc_id
 
         # Perform search
         results = self.db.search(
@@ -232,28 +234,17 @@ class VectorDBService:
         Search using multiple query formulations to get more comprehensive results.
         This helps retrieve more diverse and relevant chunks for complex queries.
         """
-        # Original query results (get half of the requested chunks)
+        # Original query results (get more of the requested chunks from direct query)
         original_results = self.search(
-            query=query, top_k=top_k // 2, filter_doc_id=filter_doc_id
+            query=query, top_k=int(top_k * 0.7), filter_doc_id=filter_doc_id
         )
 
-        # Generate alternative query formulations that are more diverse
+        # Generate alternative query formulations that are more focused
         alt_queries = [
-            # Topic-focused variants
-            f"policies about {query} at Strathmore University",
-            f"rules regarding {query} at Strathmore",
-            f"procedures for {query} at Strathmore",
-            # Format variants
-            f"definition of {query}",
-            f"{query} requirements",
-            f"{query} guidelines",
-            # Action-oriented variants
-            f"how to handle {query} at Strathmore",
-            f"what students should know about {query}",
-            f"consequences of {query} at Strathmore",
-            # Contextual variants
-            f"{query} in student handbook",
-            f"strathmore university {query} policy",
+            # More specific reformulations
+            f"{query} at Strathmore University",
+            f"{query} strathmore policy",
+            f"{query} requirements strathmore",
         ]
 
         # Get results for alternative queries
@@ -267,7 +258,7 @@ class VectorDBService:
 
             # Get results for this alternative query
             alt_results = self.search(
-                query=alt_query, top_k=5, filter_doc_id=filter_doc_id
+                query=alt_query, top_k=3, filter_doc_id=filter_doc_id
             )
 
             # Add only new chunks

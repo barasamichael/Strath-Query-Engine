@@ -4,11 +4,12 @@ import logging
 from rich.console import Console
 from rich.logging import RichHandler
 
-from services.chunking.document_processor import DocumentProcessor
-from services.retrieval.embeddings import EmbeddingService
-from services.retrieval.vector_db import VectorDBService
-from services.generation.intent_recognizer import IntentRecognizer
-from services.generation.response_generator import ResponseGenerator
+from services.vector_db import VectorDBService
+from services.embeddings import EmbeddingService
+from services.intent_recognizer import IntentRecognizer
+from services.response_generator import ResponseGenerator
+from services.document_processor import DocumentProcessor
+
 from config.settings import settings
 
 # Setup rich console for pretty output
