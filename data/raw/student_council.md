@@ -1,0 +1,235 @@
+Based on the Student Council Constitution document you've provided, I'll now convert it into a clean, comprehensive markdown format while preserving all content and maintaining the hierarchical structure.
+
+# STUDENT COUNCIL CONSTITUTION
+*28th July 2015*
+
+## TABLE OF CONTENTS
+- [Preamble](#preamble)
+- [Article I - The Student Council](#article-i---the-student-council)
+  - [Section 1 - Mission and Objectives](#section-1---mission-and-objectives)
+  - [Section 2 - Composition and Essential Duties](#section-2---composition-and-essential-duties)
+  - [Section 3 - Responsibilities of the Student Council](#section-3---responsibilities-of-the-student-council)
+  - [Section 4 - Procedures](#section-4---procedures)
+  - [Section 5 - Bylaws](#section-5---bylaws)
+  - [Section 6 - Amendments to the Constitution](#section-6---amendments-to-the-constitution)
+- [Article II - Elections and Assumption of Office](#article-ii---elections-and-assumption-of-office)
+  - [Section 1 - Election Procedures](#section-1---election-procedures)
+  - [Section 2 - Student Council Elections](#section-2---student-council-elections)
+  - [Section 3 - Assumption of Office](#section-3---assumption-of-office)
+- [Article III - Students Council Activities Account](#article-iii---students-council-activities-account)
+- [Article IV - Removal and Replacement of Council Members](#article-iv---removal-and-replacement-of-council-members)
+  - [Section 1 - Process for Removal and Replacement of Council Members](#section-1---process-for-removal-and-replacement-of-council-members)
+- [Article V - Responsibility of the Academic Council](#article-v---responsibility-of-the-academic-council)
+  - [Section 1 - General Responsibility of Academic Council](#section-1---general-responsibility-of-academic-council)
+  - [Section 2 - Inspection of Student Council](#section-2---inspection-of-sc)
+  - [Section 3 - Variation and Revocation of Student Council Constitution](#section-3---variation-and-revocation-of-student-council-constitution)
+  - [Section 4 - Dissolution of Student Council](#section-4---dissolution-of-student-council)
+
+## Preamble
+We are the students of Strathmore University, looking with concern to the world we inherit and hoping to exert influence upon its development, fostering a culture of social understanding, in which we put the common good ahead of private good and we extend our charity to our immediate community and the whole world. Our generation needs to give back to the material world, to work and study, to culture and social life, to politics and economics, to family life, and to all human endeavours, their noble and original meaning.
+
+As students of Strathmore University, we are ready to conduct our affairs in conjunction with the appropriate university authorities, for our mutual help, and in order to give each other mutual help, and to contribute to the welfare of all members of our university to the best of our ability. This Constitution sets forth the structure and guidelines by which we hope to do so.
+
+The Strathmore University Student Council is established in accordance with the University Statute XXXIX. The Student Council (SC) shall be governed by the terms and provisions of this Constitution, as approved by the Academic Council and the Strathmore University Council.
+
+## Article I - The Student Council
+
+### Section 1 - Mission and Objectives
+
+#### 1.1 Objectives
+
+1.2.1 To ensure that the views and needs of the students are adequately and accurately represented in the Student Council, in the University, in the local Community, and at national level.
+
+1.2.2 To foster a sense of community by promoting the cultural, religious, social and sporting welfare of students through clubs, societies, campus organizations and other activities such as community service.
+
+1.2.3 To adapt to the changing needs of the student body by revising policies and procedures of the student Council as necessary ensuring that the best interests of the students are always upheld.
+
+1.2.4 To be representative and to ensure that the SC members work in a transparent manner and are accountable to the student body and the Strathmore Community at large. The SC shall use all means of communication and consultation to encourage student participation in its decision-making process.
+
+1.2.5 In carrying out its mission the Student Council shall always keep in mind its primary objective of service to the University by improving the overall quality of student life.
+
+### Section 2 - Composition and Essential Duties
+
+#### 2.1 Membership
+
+2.1.1 The SC shall consist of nine voting members whose positions, duties and responsibilities are as outlined in Section 2.2 to 2.8 and in the by laws.
+
+2.1.2 The SC members shall work together as dedicated, effective and responsible representatives of the entire student body.
+
+2.1.3 In order to carry out their duties as specified in this Constitution, SC members must attend all SC ordinary and extraordinary meetings, and meetings of all committees to which they are assigned.
+
+2.1.4 All members of the SC shall hold office for a term of one calendar year, from one election to the next.
+
+#### 2.2 Chairperson
+The Chairperson shall convene and facilitate SC meetings, coordinate the working of the SC, and ensure that the views of all SC members are accurately and freely expressed. The Chairperson shall have primary responsibility for the overall functioning of the SC in conformity with its mission, objectives, duties and procedures as defined in this Constitution and the SC bylaws. The Chairperson shall establish and maintain a working relationship with the officers of the University administration, to whom he/she shall communicate and express the concerns and opinions of SC members and the whole student body.
+
+#### 2.3 Vice-Chairperson
+The Vice-Chairperson shall deputize for the Chairperson, as requested or required, in all official capacities.
+
+#### 2.4 Public Relations Representative (PRR)
+There shall be a PRR who will maintain a constant channel of communication between students and the SC by publicizing and organizing events, making use of the electronic and traditional media and overseeing all SC relations in the University. The PRR shall also be responsible for all public relations with organizations and bodies outside the University.
+
+#### 2.5 Academic Representative (AR)
+There shall be two Academic Representatives. The Academic Representatives shall represent the SC at meetings of University committees concerned with curriculum, teaching and learning.
+
+#### 2.6 Financial Representative (FR)
+The FR shall gain a working knowledge of the financial policies and procedures that are relevant to student welfare and affairs. He shall be responsible for overseeing the financial affairs of the SC, shall formulate and present the budget proposals to the Dean of Students. The FR shall also ensure that all funds allocated to or raised by the SC are accounted for and the expenditures are appropriately documented.
+
+#### 2.7 Secretary
+The Secretary shall keep and post all minutes of meetings of the SC. The Secretary shall ensure that important documentation pertaining to the SC is archived. The Secretary is expected to have a comprehensive and detailed knowledge of this Constitution and the SC bylaws, and to be able to provide such information as requested.
+
+#### 2.8 Sports Representatives (SR)
+There shall be two Sports Representatives. The two shall be members of the University Sports Committee and shall coordinate the efforts of the various student committees and organizations that host and fund sports events throughout the year. The Sports Representatives shall also be responsible for maintaining close relations with the Sports Officer of the University regarding all maters related to sports activities in the University.
+
+### Section 3 - Responsibilities of the Student Council
+
+3.1 Promote the objectives of the Student Council
+
+3.2 Promote Cohesion within the student body, recognizing the rights and responsibilities of students form diverse backgrounds.
+
+3.3 Provide opportunities to develop student leadership qualities.
+
+3.4 Promote integrity and ethical behavior by all members of the student body.
+
+3.5 Keep the student informed of relevant issues.
+
+3.6 Foster scholarship in an atmosphere of free and objective inquiry.
+
+### Section 4 - Procedures
+
+4.1 A quorum of no less than half (50%) of the members of SC is required to convene meetings and conduct voting on SC matters.
+
+4.2 All meetings shall be presided over by the Chairperson and in his absence the vice-chairperson or a designate. The Chairperson of any meeting shall determine the rules and procedures of that meeting within the bounds laid out by this Constitution and the bylaws of SC.
+
+4.3 All motions shall be decided by secret ballot or open voting. In case of an open vote, the number of votes cast for and against shall be recorded in the minutes, unless two-thirds of the members present are in favour of waiving this requirement. A member must be present in order to cast his/her vote.
+
+4.4 A simple majority shall be enough to pass a regular motion. In the case of a tie, the Chairperson shall have a casting vote.
+
+4.5 Votes of "Abstain" shall not affect the outcome of voting for regular motions.
+
+### Section 5 - Bylaws
+
+5.1 The SC shall establish and maintain a set of by-laws (external to this Constitution) in which it lays down guidelines for its activities. The SC may vote to change these bylaws by majority vote.
+
+5.2 The SC shall establish no operating procedures or bylaws that contradict this Constitution.
+
+5.3 The bylaws shall be binding to all SC members.
+
+5.4 The Dean of Students shall sanction the by-laws.
+
+### Section 6 - Amendments to the Constitution
+
+6.1 The SC is the only student body, which may submit, proposed amendments to this Constitution to the Academic Council. The amendments may originate from them or the student body at large.
+
+6.2 Amendments shall require a two-thirds majority of SC members in order to pass for presentation to the academic council.
+
+6.3 The Academic Council of the University must approve all amendments before being incorporated into the Constitution.
+
+6.4 In the interest of the university community at large, the Academic Council has the power to amend the Student Council constitution.
+
+## Article II - Elections and Assumption of office
+
+### Section 1 - Election Procedures
+
+1.1 All class delegates; class representatives, sports team captains and club chairpersons shall meet as an Electoral College to elect the Student Council at an annual meeting though secret ballot. This list of electors received from class representatives shall be compiled by the election committee and approved by the Dean of Students.
+
+1.2 Elections shall be guided by Election Rules and by-laws annex to this constitution.
+
+1.3 The Dean of Students shall supervise the elections and shall also be the returning officer.
+
+1.4 The results of the elections shall be determined in the following manner: Candidates shall be ranked by individual vote tally for each position. To win an election, a candidate must receive a majority of votes marked with his/her name. If no candidate receives more votes than those that are marked "None of the above," the seat shall remain vacant until a special election can be held to fill the position.
+
+### Section 2 - Student Council Elections
+
+2.1 Elections shall be held in the month of August each year, unless an extra-ordinary circumstance makes it impossible to hold them then. In that case, they shall be postponed to an appropriate date in the future by the Academic Council. The elected student council will serve for a period of twelve (12) months till the next election in the following year.
+
+2.2 Special elections shall be held in the event of a position being declared vacant, or failure of any candidate to achieve a majority. A vacant position shall only be filled if there is enough time remaining in the semester for a representative to perform the duties of the position effectively. Positions that remain vacant at the end of the second semester shall be filled at the beginning of the first semester of the following academic year.
+
+2.3 A representative elected during a special election shall serve only until the term of that position normally would have expired.
+
+2.4 Students may hold only one SC office at any given time, including the office of the Chairperson or Vice-Chairperson. If any SC member who already holds an official position wishes to contest election for a different position, he/she must first resign the position he/she is holding.
+
+2.5 If any of the electors is elected to the SC then he/she will have to relinquish his position as class representative, team captain or club chairperson.
+
+2.6 Should elections be nullified or cancelled, the academic council shall have the powers to determine the future date fresh elections will be held.
+
+2.7 Election malpractices shall be heard and determined by a special Student Council Elections Malpractice Committee appointed by the Academic Council.
+
+### Section 3 - Assumption of office
+
+3.1 Having been elected in the previous academic year, the newly elected office shall commence their term on the next working day after the election.
+
+3.2 All newly elected officers of the student council will be required to attend mandatory leadership sessions over the period of their tenure.
+
+3.3 The university academic council will have the power to co-opt any of the newly elected student council officials into the outgoing student council should there be a vacancy necessitated by completion of studies by one of the outgoing council members.
+
+## Article III - The Student Council Activities Account (SCAA)
+
+This account shall be administered by an accounts officer in the account department of the university though the Dean of Students.
+
+## Article IV - Removal and replacement of Council Members
+
+### Section 1 - Process for Removal and Replacement of Council Members
+
+2.1 The SC may remove any member who does not carry out his/her duties as outlined in this Constitution and the by-laws of the SC.
+
+2.2 A two-thirds majority vote of SC members, not including the student in question, is necessary to remove an SC member. The member may request an appeal hearing and a second, final vote. A tow-thirds majority vote shall be required to overturn the removal.
+
+2.3 When the SC has removed a member from the Council, it shall not proceed to effect the removal until after informing the Academic Council about the circumstances of the removal and receiving approval from the Academic Council.
+
+2.4 When a member of the SC has been removed, the office of the Dean of Students shall proceed, within two weeks of the removal, to organize an election to replace the member removed in accordance with the procedures.
+
+## Article V - Responsibility of the Academic Council
+
+### Section 1 - General Responsibility of Academic Council
+
+1.1 Except as may otherwise be provided herein, general responsibility for monitoring the execution and enforcement of the provisions of this Constitution shall rest in the Academic Council.
+
+1.2 The Academic Council shall by notice to the University Community publish the approved /amended Student Council Constitution and with effect from the date of the publication the revised SC constitution shall be in force.
+
+### Section 2 - Inspection of SC
+
+2.1 The Academic Council shall have power to inspect and inquire into the activities, programmes, management or any other relevant matter concerning the operation of the Student Council.
+
+2.2 Upon completion of inspection as provided under this section, the Academic Council shall prepare a report which shall evaluate the overall performance of the Student Council, and shall specify matters requiring rectification, remedy or enhancement.
+
+2.3 The recommendations for change and improvement shall be made available to the SC for implementation.
+
+### Section 3 - Variation and Revocation of Student Council Constitution
+
+3.1 The Academic Council may at any time either on its own initiative or at the request of the Student Council, advise the Vice Chancellor to vary provisions of the Student Council Constitution if the Academic Council is of the opinion that the variation is in the interest of the University, or that such variation may assist the Student Council to carry out its functions in a more efficient manner.
+
+3.2 The Vice-Chancellor may at any time upon recommendation of the Academic Council revoke any or all provisions of the Student Council Constitution, if in the opinion of the Academic Council the Student Council is not carrying out its functions in a proper manner or is in breach of its Constitution or that the revocation may assist the Student Council to carry out its functions in a more efficient manner or is in the interest of the University as a whole.
+
+3.3 Where the Student Council Constitution is varied under this section, the Academic Council shall:
+   (a) Publish details of such variation (to the University Community)
+   (b) Cause a notice of the revocation to be published (to the University Community).
+
+### Section 4 - Dissolution of Student Council
+
+4.1 The Vice-Chancellor may at anytime upon the recommendation of the Academic Council, dissolve the Student Council and order fresh elections, if in the opinion of the Academic Council the Student Council is not carrying out its functions properly.
+
+4.2 Where the SC is dissolved as per section 4.1, the Vice-Chancellor shall cause a notice of dissolution to be published for the University Community.
+
+## Student Council History
+
+The Strathmore University Student Council is established in accordance with the University Statute XXXIII. The main aim of the Student Council is to promote the academic, cultural, religious, social and sporting welfare of the students of Strathmore University. The Council consists of student representatives, to be chosen at open and free elections according to guidelines established by the Dean of Students. The dean of students supervises the activities of the Student Council, with whom the members of the Council will meet periodically.
+
+### Past Student Councils
+
+- **17th Student Council** (2025 - 2026)
+- **16th Student Council** (2024 - 2025)
+- **15th Student Council** (2023 - 2024)
+- **14th Student Council** (2022 - 2023)
+- **13th Student Council** (2021 - 2022)
+- **12th Student Council** (2020 - 2021)
+- **11th Student Council** (2019 - 2020)
+- **10th Student Council** (2018 - 2019)
+- **9th Student Council** (2018 - 2019)
+- **8th Student Council** (2017 - 2018)
+- **7th Student Council** (2016 - 2017)
+- **6th Student Council** (2015 - 2016)
+- **5th Student Council** (2014 - 2015)
+- **4th Student Council** (2013 - 2014)
+- **3rd Student Council** (2012 - 2013)
+- **2nd Student Council** (2011 - 2012)

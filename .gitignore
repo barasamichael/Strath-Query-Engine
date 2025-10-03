@@ -33,7 +33,6 @@ env/
 *.swo
 
 # Data files
-data/raw/*
 data/processed/*
 data/chunks/*
 data/embeddings/*
