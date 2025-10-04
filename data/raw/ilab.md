@@ -1,4 +1,4 @@
-# @iLabAfrica Graduate Programs and Certificates
+# Graduate Programs and Research Opportunities at @iLabAfrica
 
 ## Master of Science in Information Systems Security (MSc. ISS)
 
@@ -38,7 +38,7 @@ The MSc. ISS program is ideally suited for experienced information security prof
 ### Entry Requirements
 1. Holders of First Class (GPA of 3.45 – 4) or Upper Second Class (GPA of 2.85 – 3.44) degrees in a Computer Science or IT discipline from recognized universities; or
 
-2. Holders of Lower Second Class degrees in IT (or at least a GPA of 2.5) plus;
+2. Holders of Lower Second Class degrees in IT (or at least a GPA of 2.5) plus:
    - At least two years working from the day of graduation or
    - Postgraduate Diplomas or Certificates, in Computer Science or IT;
 
@@ -52,14 +52,14 @@ If the applicant meets the above entry requirements, they are then invited to si
 **NB**: The GEE is administered every Wednesday and Friday at 2:00 pm.
 
 ### Admission Requirements
-1. Dully filled-in Graduate Application Form (Download the form here).
-2. Two (2) completed Reference Forms from your professional background or from former professors particularly qualified to attest to the applicant's qualification for graduate study (Download reference form here).
-3. Certified copies of undergraduate degree certificate and transcript of records (TOR) in English giving full details of subjects studied and grades/marks obtained.
-4. Certified copy of your Kenya Certificate of Secondary Education-KCSE certificate (Secondary/High School Certificate or its equivalent).
-5. An updated Curriculum Vitae. Please use the Europass CV template (http://europass.cedefop.europa.eu).
-6. Two (2) current passport-size photos.
-7. A copy of the National Identity Card (ID) or a copy of the Passport (bio-data page).
-8. 2,500 Interview fee is payable on the interview day.
+- Dully filled-in Graduate Application Form (Download the form here).
+- Two (2) completed Reference Forms from your professional background or from former professors particularly qualified to attest to the applicant's qualification for graduate study (Download reference form here).
+- Certified copies of undergraduate degree certificate and transcript of records (TOR) in English giving full details of subjects studied and grades/marks obtained.
+- Certified copy of your Kenya Certificate of Secondary Education-KCSE certificate (Secondary/High School Certificate or its equivalent).
+- An updated Curriculum Vitae. Please use the Europass CV template (http://europass.cedefop.europa.eu).
+- Two (2) current passport-size photos.
+- A copy of the National Identity Card (ID) or a copy of the Passport (bio-data page).
+- 2,500 Interview fee is payable on the interview day.
 
 **NB**: Certified copies: Please note the copies of the certificates and transcripts should be certified by the awarding institution or by an advocate of the high court.
 
@@ -110,25 +110,25 @@ The @iLabAfrica research scholar programme targets individuals who meet the foll
 3. Possess excellent verbal and written communication skills.
 4. Have interpersonal/human relation skills.
 5. Have the ability to:
-   - Follow oral and written instructions.
-   - Work as part of a team
-   - Perform tasks assigned diligently and confidently.
+   a) Follow oral and written instructions.
+   b) Work as part of a team
+   c) Perform tasks assigned diligently and confidently.
 
 ### The Package
 @iLabAfrica Scholars will have the following benefits:
 
 1. Earn real industry experience working (8.30am -5.30pm) in one of the units under @iLabAfrica.
 2. Awarded a full scholarship for Master of Science degree that runs in the evening (5:30 pm – 8:30 pm) in one of the following disciplines:
-   - MSc. Information Systems Security.
-   - MSc. Data Science
+   a. MSc. Information Systems Security.
+   b. MSc. Data Science
 
 3. A stipend of Ksh. 15,000 per month.
 4. A meal allowance issued at the University cafeteria.
-5. Scholars will be provided with: 
-   - A research supervisor that will direct their work.
-   - Training and practical experience in scientific research and relevant software.
-   - Training on writing research proposals and grant applications.
-   - Exposure and collaboration with other tech hubs as well as attending international conferences.
+5. Scholars will be provided with:
+   a. A research supervisor that will direct their work.
+   b. Training and practical experience in scientific research and relevant software.
+   c. Training on writing research proposals and grant applications.
+   d. Exposure and collaboration with other tech hubs as well as attending international conferences.
 
 6. An opportunity to enter into paid employment with the University if the scholar manages to submit successful research proposals that attract adequate funding, or, if the scholar is engaged in a funded programme.
 
@@ -139,13 +139,203 @@ The @iLabAfrica research scholar programme targets individuals who meet the foll
 2. Attend all classes; submit all projects, CATs and assignments as required in the Master of Science degree course.
 3. Publish research based on course work done in the Master of Science degree course.
 4. Carry out research work, prepare request for funding proposals and other related work as directed by the research supervisor.
-   - If the request for funding is successful, the graduate may be offered a salary as per the terms of the research budget.
-   - If the graduate is engaged in one of @iLabAfrica's funded projects, he/she can receive a salary based on the project budget.
+   a. If the request for funding is successful, the graduate may be offered a salary as per the terms of the research budget.
+   b. If the graduate is engaged in one of @iLabAfrica's funded projects, he/she can receive a salary based on the project budget.
 
 5. Perform other clerical duties as may be required.
 
 ### Important Dates
 Please check this page later for the 2026 deadline.
+
+## @iLabAfrica Team
+
+The team of over 70 members comprises of a rich inter-disciplinary mix of researchers with technology and business expertise capable of meeting the requirements of the centre. In 2012 the Research Centre moved to the ultra-modern student centre building in Strathmore University, where it occupies two floors. This space incorporates: an office block, four innovation labs, open working spaces and business incubation offices with a capacity of up to 100 people.
+
+### Leadership Team
+- **Dr. Joseph Sevilla** - Director
+- **Emmanuel Kweyu** - Deputy Director
+- **Dr. John Olukuru** - Head of Data Science and Analytics
+- **Dr. Lorna Mutegi** - Executive Education Unit Manager
+- **Dr. Baudouin Dillmann** - Magnetism & Safety Unit Manager
+- **Dr. Betsy Murithi** - Research Fellow
+- **Dr. John Sergon** - CIGAP Manager
+- **Irene Gitangu** - Operations Manager
+- **Jim Maloba** - Finance Manager
+- **Diana Mutua** - Public Relations Manager
+- **Michael Gichure** - Digital Learning Unit Manager
+- **Imelda Mueni** - IT Consulting and Outsourcing Manager
+- **Eunice Maingi** - Cybersecurity Manager
+- **Ludovica Ochieng** - @iBizAfrica Incubation Centre Manager
+
+## Partnerships
+
+At @iLabAfrica, we believe in the power of collaboration and strategic partnerships to deliver exceptional value to our clients. We are proud to collaborate with a select group of industry-leading partners who share our commitment to excellence and innovation.
+
+Our partners bring specialized expertise, cutting-edge technologies, and a shared dedication to customer success. Together, we leverage our collective strengths to deliver comprehensive solutions that address our clients' unique challenges and drive sustainable growth.
+
+Through close collaboration and mutual trust, we continuously expand our network of partners to ensure that we can offer the most advanced and effective solutions to our clients. Together, we are shaping the future of innovators and driving positive change in the marketplace.
+
+### Total Partners
+178 Total number of Partners both local and international
+
+### International Partners
+- CISCO (US)
+- Center for Disease Control & Prevention (US)
+- Dar Teknohama Business Incubator (Tanzania)
+- Dynamic Spectrum Alliance (DSA)
+- EC-Council (US)
+- EMC DELL (US)
+- Ericsson (Sweden)
+- Farmerline Limited (Ghana)
+- Fondazione Bruno Kessler (Italy)
+- Fortinet (US)
+- Future Water (Netherlands)
+- General Electric (US)
+- Geomatics Research and Development (Nertherlands)
+- Google (US)
+- HCP International (UK)
+- Hive Colab (Uganda)
+- Huawei (China)
+- HydroLogic Research (Netherlands)
+- IBM (US)
+- ICT Norway (Norway)
+- International Telecommunication Union (Geneva)
+- MicoStep-MIS (Slovakia)
+- Microsoft (US)
+- Motorola (US)
+- Oracle (US)
+- Orange (South Africa)
+- PEPFAR (US)
+- Samsung (South Korea)
+- SAP (Germany)
+- SAS (US)
+- South African Weather Service (SA)
+- StarLab (Spain)
+- Tetratech (US)
+- Trademark EA (Tanzania/Zanzibar)
+- Vendelbo Kommunikation (Denmark)
+- Vito (Belgium)
+- Water Watch (US)
+- Women in Technology Uganda (Uganda)
+- World Bank (US)
+- Zebra Technologies (US)
+
+### Local Partners
+- Actuarial Academy East Africa
+- African Advanced Level Telecommunications Institute (AFRALTI)
+- Absa Bank
+- Bit Hub Africa
+- CIO East Africa
+- Dadisi Limited
+- Data Science Limited
+- EED Advisory
+- ESET East Africa
+- IBM Research
+- Imagine Africa
+- Info cap
+- Internet Society Kenya Chapter
+- Ispace Foundation
+- Kenya Airways
+- Kenya Association of Manufacturers
+- Kuunda 3D
+- Liquid Telcom
+- Mawingu
+- Medbook Africa Limited
+- North Kinangop Catholic Mission Hospital
+- Pauline's Publications
+- Pharmaceuticals Loci Publishers
+- Samuel Hall
+- Safaricom Ltd.
+- Somo East Africa Limited
+- Standard Chartered Bank Kenya Limited
+- Sunesis Consulting Kenya
+
+### Partner Universities
+- Brno University (Czech Republic)
+- Cape Town University (South Africa)
+- East Carolina University (US)
+- Furtwangen University (Germany)
+- Imperial College London (UK)
+- IT University of Copenhagen (Denmark)
+- Kent University (UK)
+- Kibabii University
+- KTH Royal Institute of Technology (Sweden)
+- Kwame Nkurumah University of Science and Technology (Ghana)
+- Laikipia University
+- Maastricht University (Netherlands)
+- Makerere University (Uganda)
+- Masinde Muliro University of Science & Technology
+- Massachusetts Institute of Technology (MIT) (US)
+- Nelson Mandela Metropolitan University (SA)
+- North West University (SA)
+- Obuda University (Hungary)
+- Otto von Guericke University Magdeburg (Germany)
+- Politecnico di Milano- POLIMI (Italy)
+- Tu Delft- University of Technology (Netherlands)
+- Universidad Carlos III of Madrid (Spain)
+- Université Gaston Berger de Saint-Louis (Senegal)
+- University of Cambridge (UK)
+- University of Gondar (Ethiopia)
+- University of Malawi- Chancellor College (Malawi)
+- University of Maryland- Baltimore (US)
+- University of Michigan (US)
+- University of Nairobi
+- University of Oslo (Norway)
+- University of Pau and Pays de l'Adour (France)
+- University of Pretoria (South Africa)
+- University of Strathclyde (UK)
+- Wageningen University (Netherlands)
+
+### Government Partners
+- Auditor General
+- Communications Authority of Kenya
+- County Government of Bungoma
+- County Government of Busia
+- County Government of Kiambu
+- County Government of Kilifi
+- County Government of Kisumu
+- County Government of Mombasa
+- County Government of Nandi
+- County Government of Taita Taveta
+- ICT Authority
+- Institute of Certified Public Accountants of Kenya
+- KenTrade
+- Kenya Association of Manufacturers
+- Kenya Law
+- Kenya Metrological Department
+- Kenya National Bureau of Statistics
+- Kenya National Innovation Agency
+- Kenyatta National Hospital – Cancer Clinic
+- Ministry of Health Kenya – Managed Equipment Service (MES)
+- Ministry of Industry, Trade and Cooperatives
+- National Health Public Laboratory
+
+### NGOs and Foundations
+- Association of Public Health Laboratories (US)
+- Autism Support Centre
+- Helmholtz Center for Environmental Research (Germany)
+- IDEA Foundation (Norway)
+- Independent Medico- Legal unit
+- Information Systems Audit and Control Association
+- Internet Society (US)
+- IST Africa (Ireland)
+- ITV Foundation (India)
+- Katiba Institute
+- Kenya Climate Innovation Centre
+- Laikipia Wildlife Forum
+- Maasai Mara Wildlife Conservancies Association
+- National Coalition for Human Rights Defenders
+- Pangea Funds (Norway)
+- Safaricom Foundation
+- UN Habitat
+- UNHCR
+- United Nation
+- USAID
+- Venture Capital for Africa (Netherlands)
+- Vi-Agroforestry (Sweden)
+- Wadhwani Operating Foundation (India)
+- Wageningen Economic Research (Netherlands)
+- Windle Trust Kenya
 
 ## Certificate Programs
 
@@ -182,8 +372,36 @@ The CDAV program is ideal for:
 January and July
 
 #### Payment Details
-Amount: Kshs. 60,000  
-Discount: 50% for Strathmore Student
+- Amount: Kshs. 60,000
+- Discount: 50% for Strathmore Student
+
+### Intermediate Certificate in Data Science (ICDS)
+
+#### Introduction
+The Intermediate Certificate in Data Science (ICDS) is designed for learners who have completed the foundational Certificate in Data Analytics and Visualization (CDAV) or equivalent coursework in data science basics. This course builds upon introductory data science concepts, equipping students with advanced analytical skills and enabling them to delve deeper into the more complex facets of data science.
+
+With a focus on real-world applications, ICDS prepares learners to handle more sophisticated data tasks, strengthening their expertise in data manipulation, statistical analysis, and modelling. Upon completion, students will be equipped to take on professional data science roles, contributing valuable insights to their organizations or advancing their careers in data science.
+
+#### Learning Outcomes
+- Analyse Complex Datasets: Apply advanced analytical techniques to interpret large and intricate datasets across various domains.
+- Master Data Science Tools and Techniques: Utilize industry-standard tools and programming libraries to carry out advanced data processing, statistical analysis, and modelling.
+- Implement Machine Learning Models: Develop a foundational understanding of machine learning models, enabling them to make predictions and derive insights from data.
+- Enhance Data Storytelling Skills: Craft clear and compelling data narratives for diverse audiences, helping organizations make data-driven decisions.
+- Work as Certified Data Science Professionals: Gain practical expertise to confidently pursue data science roles and meet industry demands.
+
+#### Target Audience
+- Graduates of foundational data science courses (such as CDAV) who are ready to progress to an intermediate level.
+- Professionals with a basic understanding of data science aiming to advance their skills and take on more complex data projects.
+- Individuals aspiring to build advanced competencies in data analysis and machine learning for professional growth.
+
+#### Prerequisite
+- CDAV/CDS Certificate, CV (Resume).
+- Applicants should have their own personal laptop.
+
+#### Payment Details
+- Amount: Kshs. 120,000
+- Discount: 50% for Strathmore Students
+- Discount: 25% for CDAV/CDS Alumni
 
 ### Business Intelligence with Power BI
 
@@ -209,38 +427,17 @@ By the end of this course, students will be able to:
 High School Certificate, Personal Laptop (Must)
 
 #### Payment Details
-Amount: Kshs. 60,000  
-Discount: 40% for Strathmore Student
+- Amount: Kshs. 60,000
+- Discount: 40% for Strathmore Student
 
-### Intermediate Certificate in Data Science (ICDS)
+### Certificate in Penetration Testing course
 
-The Intermediate Certificate in Data Science (ICDS) is designed for learners who have completed the foundational Certificate in Data Analytics and Visualization (CDAV) or equivalent coursework in data science basics. This course builds upon introductory data science concepts, equipping students with advanced analytical skills and enabling them to delve deeper into the more complex facets of data science.
+#### Introduction
+The need for highly skilled individuals to harden systems as a security measure is paramount. This is due to the rising cyber incidents that are posing threats to business environments, different organizations, and even critical infrastructure affecting a country.
 
-With a focus on real-world applications, ICDS prepares learners to handle more sophisticated data tasks, strengthening their expertise in data manipulation, statistical analysis, and modelling. Upon completion, students will be equipped to take on professional data science roles, contributing valuable insights to their organizations or advancing their careers in data science.
+A penetration tester subjects a system or a range of systems to real-life security tests. The penetration tester can perform specified attacks in high detail depending on the objectives sought. Advanced techniques, tools, and utilities are used to achieve this by a security consultant. Generally, this exercise is aimed at evaluating the level and effectiveness of systems hardening to advise on the existing vulnerabilities.
 
 #### Learning Outcomes
-- Analyse Complex Datasets: Apply advanced analytical techniques to interpret large and intricate datasets across various domains.
-- Master Data Science Tools and Techniques: Utilize industry-standard tools and programming libraries to carry out advanced data processing, statistical analysis, and modelling.
-- Implement Machine Learning Models: Develop a foundational understanding of machine learning models, enabling them to make predictions and derive insights from data.
-- Enhance Data Storytelling Skills: Craft clear and compelling data narratives for diverse audiences, helping organizations make data-driven decisions.
-- Work as Certified Data Science Professionals: Gain practical expertise to confidently pursue data science roles and meet industry demands.
-
-#### Target Audience
-- Graduates of foundational data science courses (such as CDAV) who are ready to progress to an intermediate level.
-- Professionals with a basic understanding of data science aiming to advance their skills and take on more complex data projects.
-- Individuals aspiring to build advanced competencies in data analysis and machine learning for professional growth.
-
-#### Prerequisite
-CDAV/CDS Certificate, CV (Resume).  
-Applicants should have their own personal laptop.
-
-#### Payment Details
-Amount: Kshs. 120,000  
-Discount: 50% for Strathmore Students  
-Discount: 25% for CDAV/CDS Alumni
-
-### Certificate in Penetration Testing Course
-
 The need for highly skilled individuals to harden systems as a security measure is paramount. This is due to the rising cyber incidents that are posing threats to business environments, different organizations, and even critical infrastructure affecting a country.
 
 A penetration tester subjects a system or a range of systems to real-life security tests. The penetration tester can perform specified attacks in high detail depending on the objectives sought. Advanced techniques, tools, and utilities are used to achieve this by a security consultant. Generally, this exercise is aimed at evaluating the level and effectiveness of systems hardening to advise on the existing vulnerabilities.
@@ -264,89 +461,10 @@ If one cannot raise the full amount, we accept 50% before the start of the class
 
 ### Strathmore University Bank Accounts
 
-#### For Tuition Fees Payment
+Multiple payment options are available including:
+- M-PESA via various banks (SBM Bank, EQUITY Bank, Stanbic Bank, Co-operative Bank)
+- Direct bank deposits (Cash/Cheque)
+- Bank transfers (EFT/RTGS & Online Banking)
+- International transfers for foreign currencies
 
-**SBM Bank**  
-Account name: Strathmore University  
-Account number: 0242027486004  
-Bank Name: SBM Bank  
-Bank Branch: Strathmore  
-Swift code: SBMKKENA  
-
-**EQUITY Bank**  
-Account name: Strathmore University  
-Account number: 0170293160242  
-Bank Name: Equity Bank  
-Bank Branch: Nairobi West  
-
-**Stanbic Bank**  
-Account Name: Strathmore University  
-Account Number: 0100004512612  
-Bank Name: Stanbic Bank  
-Bank Branch: Chiromo-31000  
-Swift code: SBICKENX  
-
-**Co-operative Bank**  
-Name: Strathmore University  
-Bank: CO-OP Bank  
-Account Number: 01129160494600  
-Branch: Upper Hill  
-Branch code: 037  
-Swift Code: KCOOKENA  
-
-**Standard Chartered Bank**  
-Name: Strathmore University  
-Bank: Standard Chartered Bank  
-Account Number: 0102044844000  
-Branch: Karen  
-Branch code: 075  
-Bank code: 02  
-Swift Code: SCBLKENX  
-
-### M-PESA Payment Options
-- **SBM Bank**: Paybill number 600950, Account: [Student Number]
-- **Equity Bank**: Paybill number 4027783, Account: [Student Number]
-- **Stanbic Bank**: Paybill number 168633, Account: 99020[Student Number]
-- **Co-op Bank**: Paybill number 400222, Account: 1059#[Student Number]
-
-### Additional Payment Information
-1. Credit / Debit Cards: Payments made by credit/debit cards, local and international, attract a 3% levy on the total amount payable.
-2. Cash payments are not acceptable at the university premises (Finance Office).
-3. Bank confirmation receipts for tuition fees payments should be sent to: creditcontrol@strathmore.edu
-4. Other queries or confirmations can be addressed by sending an email to: financedepartment@strathmore.edu or call +254 703 034000 or +254 115 021690
-
-### For Foreign Currency & International Transfers
-International payments can be made through correspondent accounts with detailed routing instructions available for:
-- Standard Chartered Bank (USD, EUR, GBP)
-- Citibank (USD, EUR, GBP)
-
-Stamped bank details and statements are available upon request to creditcontrol@strathmore.edu or financedepartment@strathmore.edu
-
-## Leadership Team
-
-The @iLabAfrica team comprises of over 70 members with an inter-disciplinary mix of researchers with technology and business expertise:
-
-- **Dr. Joseph Sevilla** - Director
-- **Emmanuel Kweyu** - Deputy Director
-- **Dr. John Olukuru** - Head of Data Science and Analytics
-- **Dr. Lorna Mutegi** - Executive Education Unit Manager
-- **Dr. Baudouin Dillmann** - Magnetism & Safety Unit Manager
-- **Dr. Betsy Murithi** - Research Fellow
-- **Dr. John Sergon** - CIGAP Manager
-- **Irene Gitangu** - Operations Manager
-- **Jim Maloba** - Finance Manager
-- **Diana Mutua** - Public Relations Manager
-- **Michael Gichure** - Digital Learning Unit Manager
-- **Imelda Mueni** - IT Consulting and Outsourcing Manager
-- **Eunice Maingi** - Cybersecurity Manager
-- **Ludovica Ochieng** - @iBizAfrica Incubation Centre Manager
-
-## Partnerships
-
-@iLabAfrica collaborates with a diverse range of partners including:
-- 178 total partners (local and international)
-- International technology companies (CISCO, Google, Microsoft, IBM, etc.)
-- Local partners (Safaricom, Kenya Airways, etc.)
-- Partner universities worldwide
-- Government partners
-- NGOs and foundations
+For specific payment details, please refer to the information provided for your specific program.

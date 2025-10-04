@@ -1,0 +1,9 @@
+
+
+--- MERGED CHUNK (from 2 sources) ---
+
+- Internet access is logged - To access the Internet, one needs to log in using his/her account name and password, which will be provided once s/he has enrolled for a course in the university. - A facility exists to inform the Network Administrator when a certain site might be blocked by mistake. - Access to sites with immoral content and other inappropriate non-educational sites is prohibited. - Please note that the University has a limited bandwidth available.
+
+--- Additional Information ---
+### Internet Regulations - The Internet is an educational tool available to all students and should be used to facilitate learning. - The University provides a filtered Internet access; non-educational sites might be inaccessible. After repeated attempts at accessing a blocked site, a user might be logged out from the service.
+

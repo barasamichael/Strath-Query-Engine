@@ -24,6 +24,12 @@ chunking:
   chunk_size: 500
   chunk_overlap: 50
 
+# Deduplication Configuration
+deduplication:
+  enabled: true
+  similarity_threshold: 0.92
+  information_weight: 0.1
+
 # API Configuration
 api:
   host: 0.0.0.0

@@ -1,16 +1,17 @@
 import os
 import json
 import logging
-from pathlib import Path
 from typing import Dict
 from typing import List
+from pathlib import Path
 from typing import Optional
 
 import numpy as np
 from tqdm import tqdm
 from openai import OpenAI
 
-from config.settings import settings, ROOT_DIR
+from config.settings import settings
+from config.settings import ROOT_DIR
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO)
@@ -26,14 +27,17 @@ class EmbeddingService:
         model_name: Optional[str] = None,
         chunks_dir: Path = None,
         embeddings_dir: Path = None,
+        dedup_dir: Path = None,
     ):
         self.model_name = model_name or settings.embedding.model
         self.chunks_dir = chunks_dir or ROOT_DIR / "data" / "chunks"
         self.embeddings_dir = embeddings_dir or ROOT_DIR / "data" / "embeddings"
+        self.dedup_dir = dedup_dir or ROOT_DIR / "data" / "deduplicated"
 
         # Ensure directories exist
-        if not self.embeddings_dir.exists():
-            self.embeddings_dir.mkdir(parents=True)
+        for dir_path in [self.embeddings_dir, self.dedup_dir]:
+            if not dir_path.exists():
+                dir_path.mkdir(parents=True)
 
         # For OpenAI ada-002, the dimension is 1536
         self.dimension = settings.embedding.dimension
@@ -52,7 +56,15 @@ class EmbeddingService:
             # Embed a single chunks file
             return self._embed_chunks_file(chunks_file)
         else:
-            # Embed all chunks files in the directory
+            # Check if deduplicated chunks exist and use those preferentially
+            dedup_file = self.dedup_dir / "deduplicated_chunks.jsonl"
+            if dedup_file.exists():
+                logger.info(
+                    f"Using deduplicated chunks for embedding: {dedup_file}"
+                )
+                return self._embed_chunks_file(dedup_file, is_deduplicated=True)
+
+            # Otherwise, embed all chunks files in the directory
             all_embeddings = {}
             for file_path in tqdm(
                 list(self.chunks_dir.glob("*_chunks.jsonl")),
@@ -63,7 +75,9 @@ class EmbeddingService:
 
             return all_embeddings
 
-    def _embed_chunks_file(self, chunks_file: Path) -> Dict[str, np.ndarray]:
+    def _embed_chunks_file(
+        self, chunks_file: Path, is_deduplicated: bool = False
+    ) -> Dict[str, np.ndarray]:
         """Embed all chunks from a single file using OpenAI API."""
         logger.info(f"Embedding chunks from: {chunks_file}")
 
@@ -74,15 +88,20 @@ class EmbeddingService:
         with open(chunks_file, "r", encoding="utf-8") as f:
             for line in f:
                 chunk = json.loads(line)
-                chunks.append(chunk["text"])
-                chunk_ids.append(chunk["chunk_id"])
+                # Handle both original and deduplicated chunk formats
+                if is_deduplicated:
+                    chunks.append(chunk["text"])
+                    chunk_ids.append(chunk["chunk_id"])
+                else:
+                    chunks.append(chunk["text"])
+                    chunk_ids.append(chunk["chunk_id"])
 
         if not chunks:
             logger.warning(f"No chunks found in {chunks_file}")
             return {}
 
         # Generate embeddings in batches
-        embeddings = self._embed_batch(chunks)
+        embeddings = self.embed_batch(chunks)
 
         # Create mapping from chunk IDs to embeddings
         embeddings_dict = {
@@ -91,10 +110,14 @@ class EmbeddingService:
         }
 
         # Save embeddings to file
-        output_path = (
-            self.embeddings_dir
-            / f"{chunks_file.stem.replace('_chunks', '')}_embeddings.npz"
-        )
+        if is_deduplicated:
+            output_path = self.embeddings_dir / "deduplicated_embeddings.npz"
+        else:
+            output_path = (
+                self.embeddings_dir
+                / f"{chunks_file.stem.replace('_chunks', '')}_embeddings.npz"
+            )
+
         np.savez(
             output_path,
             embeddings=np.array(embeddings),
@@ -104,9 +127,7 @@ class EmbeddingService:
         logger.info(f"Embedded {len(chunks)} chunks. Saved to {output_path}")
         return embeddings_dict
 
-    def _embed_batch(
-        self, texts: List[str], batch_size: int = 20
-    ) -> np.ndarray:
+    def embed_batch(self, texts: List[str], batch_size: int = 20) -> np.ndarray:
         """Generate embeddings for a list of texts in batches using OpenAI API."""
         all_embeddings = []
 
@@ -143,3 +164,12 @@ class EmbeddingService:
         except Exception as e:
             logger.error(f"Error generating query embedding: {str(e)}")
             return np.zeros(self.dimension)
+
+    def embed_deduplicated_chunks(self) -> Dict[str, np.ndarray]:
+        """Specifically embed the deduplicated chunks."""
+        dedup_file = self.dedup_dir / "deduplicated_chunks.jsonl"
+        if not dedup_file.exists():
+            logger.warning(f"Deduplicated chunks file not found: {dedup_file}")
+            return {}
+
+        return self._embed_chunks_file(dedup_file, is_deduplicated=True)

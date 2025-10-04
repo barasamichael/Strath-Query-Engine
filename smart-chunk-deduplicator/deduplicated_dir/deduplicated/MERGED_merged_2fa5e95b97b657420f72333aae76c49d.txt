@@ -1,0 +1,6 @@
+
+
+--- MERGED CHUNK (from 2 sources) ---
+
+This is with a focus on self-driving databases that can perform query optimization of queries with join-crossing correlations, knob configuration (performance tuning), physical database design (indexing and partitioning), and hardware provisioning. He extends the progress he makes in this discipline-specific research area to have a significant societal impact in development economics.
+

@@ -404,3 +404,97 @@ Come learn with us to save lives. Joining the club is a very enriching experienc
 Join the club and be part of an exciting journey that will add value to your life and learn how to save lives!
 
 Email: firstaidclub@strathmore.edu
+
+# Strathmore University Staff and Courses
+
+## Administrative Staff
+
+### Dean of Students
+Paul Ochieng
+
+### Manager Student Affairs
+Michael Owiti
+
+### CDS Associate Manager
+Ivy Muthoni
+
+### International Students Affairs Administrator
+Thomas Nyambura
+
+### Sports Administrator
+Brian Kithinji
+
+## Strathmore University Courses
+
+### Undergraduate
+- Bachelor of Science in Tourism Management (BTM)
+- Bachelor of Science in Hospitality Management (BHM)
+- Bachelor of Business Science: Financial Engineering (BBSFENG)
+- Bachelor of Business Science: Financial Economics (BBSFE)
+- Bachelor of Business Science: Actuarial Science (BBSACT)
+- Bachelor Of Science In Informatics And Computer Science (BICS)
+- Bachelor Of Business Information Technology (BBIT)
+- BSc. Computer Networks and Cyber Security (BCNS)
+- Bachelor of Laws (LLB)
+- Bachelor of Arts in Communication (BAC)
+- Bachelor of Arts in International Studies
+- Bachelor of Arts in Development Studies and Philosophy (BDP)
+- Bachelor of Science in Supply Chain and Operations Management (BSCM)
+- Bachelor of Financial Services (BFS)
+- Bachelor Of Science In Electrical and Electronics Engineering (BSEEE)
+- BSc in Statistics and Data Science (BScSDS)
+- Bachelor of Commerce (BCOM)
+
+### Graduate
+- MSc. Computing and Information Systems (MSc CIS)
+- Master of Science in Information Technology (MSc.IT)
+- Master of Science in Statistical Science (MSc SS)
+- Master of Science in Mathematical Finance and Risk Analytics (MSc MFRA)
+- Master of Science in Biomathematics
+- Master of Applied Philosophy and Ethics (MAPE)
+- Msc. Education Management (MEM)
+- Master of Laws (LLM)
+- Master of Science in Information Systems Security (Msc ISS)
+- Master of Management in Agribusiness (MMA)
+- Master's in Public Policy and Management (MPPM)
+- Master of Science in Development Finance (MDF)
+- MBA – Healthcare Management (MBA-HCM)
+- MBA for Executives
+- Master in Hospitality Business Management (MHBM)
+- Msc. Data Science and Analytics (MSC DSA)
+- Master of Science in Sustainable Energy Transitions (MSc. SET)
+- Master of Arts in Diplomacy, Intelligence and Security (MDIS)
+- Masters in Spectrum Management
+- Master of Commerce (MCOM)
+- Master of Arts in International Relations (MAIR)
+- Master of Science in Economics
+
+### Postgraduate
+- PhD in Computer Science (PhD CS)
+- Doctor of Laws (LLD)
+- PhD in Mathematical Sciences
+- PhD in Healthcare Management
+- PhD in Business and Management
+
+### Diploma
+- Diploma in Business Creation and Entrepreneurship (DE)
+- Diploma in International Relations (DIR)
+- Diploma in Business Management (DBM)
+- Diploma in Business Information Technology (DBIT)
+
+### Professional Courses
+- Certified Public Accountants (CPA)
+- Association of Chartered Certified Accountants (ACCA)
+- Chartered Financial Analyst (CFA)
+- Certified Information Systems Auditor (CISA)
+- Certified Information Security Manager (CISM)
+- Chartered Institute of Marketing (CIM)
+- Teacher Enhancement Programme (TEP)
+- Certificate in Data Science (ICDS)
+- Certificate in Computer Applications (CCA)
+- International Computer Driving License (ICDL)
+- Film-making and Life Skills (FLS)
+- Culinary Arts
+- Computer Hacking Forensics Investigator (CHFI)
+- Certificate in Penetration Testing (ICPT)
+- Certified Ethical Hacking (CEH)

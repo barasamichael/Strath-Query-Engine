@@ -1,0 +1,9 @@
+
+
+--- MERGED CHUNK (from 2 sources) ---
+
+| Kenya Forestry Institute (KEFRI), University of Neuchatel, University of Huddersfield | Ongoing | July 2023-Dec 2024 | Allan Vikiru, Daniel Simiyu, Zainabu Muti, Jamlick Ntonjira, Solomon Kamau, Sandra Gathoni | | Modeling Sound Propagation in Forested Ecosystems to Optimize IoT-Enabled Acoustic Sensors and Drone Applications for Enhanced Conservation Efforts | The effectiveness of Sound- based models for detecting illegal logging activities is often hampered by the complex nature of sound
+
+--- Additional Information ---
+| Kenya Forestry Institute (KEFRI), University of Neuchatel, University of Huddersfield | Awaiting Feedback | Feb 2025-Mar 2027 | Allan Vikiru, Daniel Simiyu, Zainabu Muti, Jamlick Ntonjira, Solomon Kamau, Sandra Gathoni | **Areas of Interest:** - Applied Machine learning - Computer Vision - Conservation Technology **Academic and University Training:** Dr Muchiri holds a PhD in Information Systems from Strathmore university, Master of Science in information technology (MSIT) from Strathmore
+

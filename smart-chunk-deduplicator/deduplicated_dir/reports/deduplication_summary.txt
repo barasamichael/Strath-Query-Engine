@@ -1,0 +1,64 @@
+Smart Chunk Deduplication Summary: 2025-10-04 13:31:20
+Input Directory: ../data/raw
+Chunk Size: 500, Chunk Overlap: 100
+Similarity Threshold: 0.92
+
+Files Processed: 17
+Original Chunks: 1777
+Deduplicated Chunks: 1351
+Merged Chunks: 139
+Unchanged Chunks: 1212
+
+Text Reduction: 13002 characters (1.79%)
+
+Top Merged Chunks (by information score):
+  1. Merged from 7 chunks across 1 files
+     Source files: sces.md
+     Information score: 0.7002
+     First 100 chars: Journal of Advances in Computer Engineering and Technology, 6(2), pp. 107-118. http://www.si journal...
+
+  2. Merged from 4 chunks across 1 files
+     Source files: sces.md
+     Information score: 0.6868
+     First 100 chars: To conduct Joint research, particularly around Challenge-Driven Education | 1. Strathmore University...
+
+  3. Merged from 2 chunks across 1 files
+     Source files: application_process.md
+     Information score: 0.6857
+     First 100 chars: For unsuccessful candidates, share rejection letters and recommendation | ### Financial Aid Schedule...
+
+  4. Merged from 22 chunks across 4 files
+     Source files: student_council.md, 2023_statutes.md, generic.md, strathmore_handbook.md
+     Information score: 0.6746
+     First 100 chars: STATUTE 32: STRATHMORE UNIVERSITY AFFILIATES....................... 57 STATUTE 33: STANDARDS OF STUD...
+
+  5. Merged from 20 chunks across 3 files
+     Source files: application_process.md, ilab.md, sces.md
+     Information score: 0.6746
+     First 100 chars: Holders of First Class (GPA of 3.45 – 4) or Upper Second Class (GPA of 2.85 – 3.44) degrees in a Com...
+
+  6. Merged from 4 chunks across 1 files
+     Source files: sces.md
+     Information score: 0.6616
+     First 100 chars: - Interviews are held on Tuesdays and Thursdays at 8:00 am - Candidates are required to bring Origin...
+
+  7. Merged from 2 chunks across 1 files
+     Source files: sces.md
+     Information score: 0.6476
+     First 100 chars: Julius Kilonzi Charles, Peter Musau Moses, Jackson Mwangi Mbuthia; "Metaheuristic-based Adaptive Hyb...
+
+  8. Merged from 3 chunks across 2 files
+     Source files: student_affairs.md, sces.md
+     Information score: 0.6352
+     First 100 chars: **Bachelor of Science in Statistics and Data Science** ### Masters Programs 1. **Master of Science i...
+
+  9. Merged from 16 chunks across 3 files
+     Source files: application_process.md, ilab.md, sces.md
+     Information score: 0.6205
+     First 100 chars: Provide a certified copy of your Kenya Certificate of Secondary Education-KCSE certificate (Secondar...
+
+  10. Merged from 3 chunks across 2 files
+     Source files: strathmore_handbook.md, generic.md
+     Information score: 0.6137
+     First 100 chars: The first undergraduate students to enroll in these faculties completed their 4-year degree course i...
+

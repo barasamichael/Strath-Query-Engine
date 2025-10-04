@@ -12,7 +12,8 @@ import numpy as np
 from tqdm import tqdm
 from sklearn.metrics.pairwise import cosine_similarity
 
-from config.settings import settings, ROOT_DIR
+from config.settings import settings
+from config.settings import ROOT_DIR
 from services.embeddings import EmbeddingService
 
 # Initialize logging
@@ -73,8 +74,7 @@ class SimpleVectorDB:
     def save(self, path):
         """Save the database to a file."""
         with open(path, "wb") as f:
-            pickle.dump({"vectors": self.vectors,
-                        "metadata": self.metadata}, f)
+            pickle.dump({"vectors": self.vectors, "metadata": self.metadata}, f)
 
     def load(self, path):
         """Load the database from a file."""
@@ -102,9 +102,17 @@ class VectorDBService:
             self.db_path.mkdir(parents=True, exist_ok=True)
 
         self.db_file = self.db_path / f"{self.collection_name}.pkl"
+        self.dedup_db_file = (
+            self.db_path / f"{self.collection_name}_deduplicated.pkl"
+        )
 
-        # Try to load existing database
-        if os.path.exists(self.db_file):
+        # Try to load existing database, preferring deduplicated if it exists
+        if os.path.exists(self.dedup_db_file):
+            self.db.load(self.dedup_db_file)
+            logger.info(
+                f"Loaded deduplicated vector database with {len(self.db.vectors)} vectors"
+            )
+        elif os.path.exists(self.db_file):
             self.db.load(self.db_file)
             logger.info(
                 f"Loaded vector database with {len(self.db.vectors)} vectors"
@@ -118,14 +126,46 @@ class VectorDBService:
                 f"{'Recreated' if recreate else 'Initialized'} vector database"
             )
         else:
-            self.db.load(self.db_file)
-            logger.info(
-                f"Vector database already exists with {len(self.db.vectors)} vectors"
-            )
+            # Try loading deduplicated version first
+            if os.path.exists(self.dedup_db_file):
+                self.db.load(self.dedup_db_file)
+                logger.info(
+                    f"Vector database already exists with {len(self.db.vectors)} vectors (deduplicated)"
+                )
+            else:
+                self.db.load(self.db_file)
+                logger.info(
+                    f"Vector database already exists with {len(self.db.vectors)} vectors"
+                )
 
-    def index_chunks(self, chunks_dir: Optional[Path] = None) -> None:
-        """Index all chunks from the chunks directory into the vector database."""
-        chunks_dir = chunks_dir or ROOT_DIR / "data" / "chunks"
+    def index_chunks(self, chunks_file: Optional[Path] = None) -> None:
+        """
+        Index all chunks from the chunks directory into the vector database.
+        If deduplicated chunks exist, use those preferentially.
+        """
+        # Check if deduplicated chunks exist
+        dedup_dir = ROOT_DIR / "data" / "deduplicated"
+        dedup_file = dedup_dir / "deduplicated_chunks.jsonl"
+
+        if dedup_file.exists():
+            logger.info(f"Indexing deduplicated chunks from: {dedup_file}")
+            # Reset the database to use deduplicated chunks
+            self.db = SimpleVectorDB()
+
+            # Index deduplicated chunks
+            self._index_deduplicated_chunks(dedup_file)
+
+            # Save the database
+            self.db.save(self.dedup_db_file)
+            logger.info(
+                f"Saved deduplicated vector database with {len(self.db.vectors)} vectors"
+            )
+            return
+
+        # If no deduplicated chunks, process standard chunks
+        chunks_dir = (
+            chunks_file.parent if chunks_file else ROOT_DIR / "data" / "chunks"
+        )
 
         if not chunks_dir.exists():
             logger.error(f"Chunks directory not found: {chunks_dir}")
@@ -136,9 +176,12 @@ class VectorDBService:
         logger.info("Reset vector database to avoid duplicates")
 
         # Process each chunks file
-        for chunks_file in tqdm(
-            list(chunks_dir.glob("*_chunks.jsonl")), desc="Indexing files"
-        ):
+        if chunks_file:
+            files_to_process = [chunks_file]
+        else:
+            files_to_process = list(chunks_dir.glob("*_chunks.jsonl"))
+
+        for chunks_file in tqdm(files_to_process, desc="Indexing files"):
             try:
                 self._index_chunks_file(chunks_file)
             except Exception as e:
@@ -205,6 +248,77 @@ class VectorDBService:
 
         logger.info(f"Indexed {len(vectors)} chunks from {doc_id}")
 
+    def _index_deduplicated_chunks(self, dedup_file: Path) -> None:
+        """Index deduplicated chunks into the vector database."""
+        # Check if embeddings already exist
+        embeddings_file = (
+            ROOT_DIR / "data" / "embeddings" / "deduplicated_embeddings.npz"
+        )
+
+        if not embeddings_file.exists():
+            # Generate embeddings if they don't exist
+            logger.info(
+                "Embeddings not found for deduplicated chunks, generating them now"
+            )
+            self.embedding_service.embed_deduplicated_chunks()
+
+        # Load embeddings
+        embeddings_data = np.load(embeddings_file)
+        embeddings = embeddings_data["embeddings"]
+        chunk_ids = embeddings_data["chunk_ids"]
+
+        # Load chunks to get full metadata
+        chunks = []
+        with open(dedup_file, "r", encoding="utf-8") as f:
+            for line in f:
+                chunks.append(json.loads(line))
+
+        # Add vectors to the database
+        vectors = []
+        metadata_list = []
+
+        for i, (chunk, chunk_id) in enumerate(zip(chunks, chunk_ids)):
+            if i >= len(embeddings):
+                logger.warning(
+                    "Mismatch between chunks and embeddings for deduplicated chunks"
+                )
+                break
+
+            # Create metadata
+            metadata = {
+                "chunk_id": chunk["chunk_id"],
+                "doc_id": chunk.get("doc_id", ""),
+                "chunk_index": chunk.get("chunk_index", 0),
+                "text": chunk["text"],
+            }
+
+            # Add information score if available
+            if "information_score" in chunk:
+                metadata["information_score"] = chunk["information_score"]
+            elif (
+                "metadata" in chunk and "information_score" in chunk["metadata"]
+            ):
+                metadata["information_score"] = chunk["metadata"][
+                    "information_score"
+                ]
+
+            # Add merged flag if available
+            if "merged_from" in chunk and len(chunk["merged_from"]) > 1:
+                metadata["is_merged"] = True
+                metadata["merged_from"] = chunk["merged_from"]
+            elif "metadata" in chunk and chunk["metadata"].get("merged", False):
+                metadata["is_merged"] = True
+                if "merged_from" in chunk["metadata"]:
+                    metadata["merged_from"] = chunk["metadata"]["merged_from"]
+
+            vectors.append(embeddings[i].tolist())
+            metadata_list.append(metadata)
+
+        # Add vectors to the database
+        self.db.add_vectors(vectors, metadata_list)
+
+        logger.info(f"Indexed {len(vectors)} deduplicated chunks")
+
     def search(
         self, query: str, top_k: int = 20, filter_doc_id: Optional[str] = None
     ) -> List[Dict[str, Any]]:
@@ -215,8 +329,9 @@ class VectorDBService:
         # Prepare filter if needed
         filter_fn = None
         if filter_doc_id:
-            def filter_fn(metadata): return metadata.get(
-                "doc_id") == filter_doc_id
+
+            def filter_fn(metadata):
+                return metadata.get("doc_id") == filter_doc_id
 
         # Perform search
         results = self.db.search(
@@ -224,6 +339,17 @@ class VectorDBService:
             top_k=top_k,
             filter_fn=filter_fn,
         )
+
+        # Boost results from high information chunks if score available
+        for result in results:
+            if "information_score" in result:
+                # Boost score by information density (slight boost)
+                result["score"] = result["score"] * (
+                    1 + 0.1 * result["information_score"]
+                )
+
+        # Re-sort results by adjusted score
+        results.sort(key=lambda x: x["score"], reverse=True)
 
         return results
 

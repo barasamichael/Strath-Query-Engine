@@ -1,0 +1,24 @@
+
+
+--- MERGED CHUNK (from 7 sources) ---
+
+Journal of Advances in Computer Engineering and Technology, 6(2), pp. 107-118. http://www.si journal.org/index.php/JSI/article/viewFile/385/181178245 Khakata, E., Omwenga, V., Msanjila, S. (2020). A Stochastic Modeling Approach to Student Performance Prediction on an Internet-Mediated Environment. Computer Engineering and Applications (ComEngApp) Journal. Vol. 9(2), pp. 93-106. Available at https://comengapp.unsri.ac.id/index.php/comengapp/article/view/337 Kenga, D., Omwenga, V., Ogao, P. (2020).
+
+--- Additional Information ---
+Available on: https://www.semanticscholar.org/paper/Internet-technology-utilization-in-learning-Nyokabi- Samuel/a6e94fddac5329945aee355435e3cb71d3868a6c 2. Khakata, E., Omwenga, V. & Msanjila, S. (2018): Predicting Student's Performance using Data on Internet Technology Usage Behavioural Patterns. International Journal of Scientific Research in Computer Science, Engineering and Information Technology, Vol. 3(1) pp. 2456- 3307. Available on: http://ijsrcseit.com/CSEIT1831339. 3.
+
+--- Additional Information ---
+Available on: http://jacet.srbiau.ac.ir/article_15686_762fee5627cefb1b7110ce717e9a5b22.pdf 5. Khakata, E. N., Msanjila, S. S., & Omwenga, V. O. (2020). The Prediction of Internet Technology Utilization within Learning Environments. International Journal of Scientific Research in Computer Science, Engineering and Information Technology (IJSRCSEIT), ISSN : 2456-3307, Vol.6 (3), pp. 216-222.
+
+--- Additional Information ---
+6, Issue 3, pp.216-222. Available at doi: https://doi.org/10.32628/CSEIT206341 Kenga Mosoti Derdus, Vincent Oteke Omwenga, Patrick Job Ogao (2019). Energy-Aware Virtual Machine Clustering for Consolidation in Multi-tenant IaaS Public Clouds.
+
+--- Additional Information ---
+5, Issue 2, pp.1123-1136. Virtual Machine Sizing in Virtualized Public Cloud Data Centres. 5, Issue 3, pp.583-590.
+
+--- Additional Information ---
+Student Performance Prediction on Internet Mediated Environments using Decision Trees. International Journal of Computer Applications 181(42): 1-9. Available at doi: https://doi.org/10.5120/ijca2019918466 Kenga Mosoti Derdus, Vincent Oteke Omwenga and Patrick Job Ogao(2019). The Effect of Cloud Workload Consolidation on Cloud Energy Consumption and Performance in Multi-Tenant Cloud Infrastructure. International Journal of Computer Applications 181(37): 47-53.
+
+--- Additional Information ---
+Autonomous Virtual Machine Sizing and Resource Usage Prediction for Efficient Resource Utilization in Multi-Tenant Public Cloud. International Journal of Information Technology and Computer Science (IJITCS). 11 No. 5: pp.11-22, Available at doi: https://doi.org/10.5815/ijitcs.2019.05.02 Esther Khakata, Vincent Omwenga, Simon Msanjila (2018). Predicting Student's Performance using Data on Internet Technology Usage Behavioural Patterns.
+

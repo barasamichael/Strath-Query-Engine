@@ -34,6 +34,12 @@ class ChunkingConfig(BaseModel):
     chunk_overlap: int
 
 
+class DeduplicationConfig(BaseModel):
+    enabled: bool
+    similarity_threshold: float
+    information_weight: float
+
+
 class APIConfig(BaseModel):
     host: str
     port: int
@@ -46,6 +52,7 @@ class Settings(BaseModel):
     embedding: EmbeddingConfig
     vector_db: VectorDBConfig
     chunking: ChunkingConfig
+    deduplication: DeduplicationConfig
     api: APIConfig
 
     @classmethod
@@ -65,3 +72,8 @@ if os.getenv("HOST"):
 
 if os.getenv("PORT"):
     settings.api.port = int(os.getenv("PORT"))
+
+if os.getenv("DEDUPLICATION_ENABLED"):
+    settings.deduplication.enabled = (
+        os.getenv("DEDUPLICATION_ENABLED").lower() == "true"
+    )

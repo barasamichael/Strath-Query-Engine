@@ -1,0 +1,98 @@
+Your presence enriches our learning environment and fosters a truly global perspective. We encourage you to share your culture and traditions with your fellow students, faculty, and staff. Don't hesitate to reach out to our office with any questions or concerns you may have. We have dedicated staff members ready to assist you in any way they can. We also encourage you to explore the resources available on our website to learn more about the support services we offer.
+
+We are here to support you throughout your journey and to help you make the most of your time here. We are committed to providing you with a welcoming and inclusive environment where you can feel at home. We encourage you to get involved in campus life, explore the local community and make new friends from all over the world. There are many resources available to help you adjust to life in Kenya, and we are here to guide you in every step of the way.
+
+## Welcome Guide for New International Students This guide aims to provide you with essential information and resources to help you settle in smoothly and make the most of your time at our university and in the vibrant city of Nairobi. ### Arrival and Transportation: - Consider using a local SIM card for easier access to mobile data and communication.
+
+- If you are arriving at Jomo Kenyatta International Airport (JKIA), you can take a taxi, ride-hailing app (e.g., Uber, Bolt), or public transport to reach Strathmore University in Madaraka Estate. ### Accommodation You may have already secured accommodation, but if not, the university's International Student offices or Mentoring office can offer guidance on finding suitable housing options in Madaraka Estate or nearby areas. Meanwhile, click here to see the various options available.
+
+You can also write to us through email studentpass@strathmore.edu ### Registration and Orientation - Be sure to register yourself as a new international student via this (Registration Link). This will enable our office to consider you in our programs for the new students including the international students only orientation amongst other programs.
+
+- Attend the general orientation program, which will introduce you to campus life, student services, and opportunities to connect with other international and local students. ### Life as a Stratizen #### Academics - Familiarise yourself with the academic calendar and course registration procedures. See link for the calendar (Calendar Link) - Meet your Faculty administrator, who can help you choose courses and navigate academic requirements.
+
+- The university offers various academic support services, such as writing centres, Language support, and student career workshops. Don't hesitate to utilize these resources. #### Campus Life - Get involved in student clubs and organisations based on your interests and cultural background. This is a fantastic way to meet new people, explore diverse perspectives, and engage in extracurricular activities.
+
+Click the Clubs Registration Link to register for a club - Participate in university-organised events and activities throughout the year. These events are a great way to experience Kenyan culture, learn new skills, and build friendships. #### Support Services - The International Student Office serves as your primary point of contact for any questions or concerns you may have during your studies.
+
+- The university also offers health and wellness resources, including counselling services, medical centres, and student support groups. ### Exploring Nairobi City #### Safety and Security - Familiarise yourself with the local area and be aware of your surroundings. - Carry and take care of your student ID, Passport and other necessary documents at all times. - Be cautious when using public transportation and choose well-lit routes, especially at night.
+
+#### Culture and Entertainment - Nairobi offers a vibrant cultural scene with museums, art galleries, and historical sites. Watch out the events page for a city tour call for registration of participants. - Explore the diverse culinary scene, from local Kenyan cuisine to international options. Start with the ones being served at the University cafeteria. - Take advantage of Nairobi's proximity to national parks and wildlife conservancies for weekend getaways and safaris.
+
+Make sure you are in the company of friends. #### Community and Connection - Connect with other international students through student clubs, social events, or online communities. Click here to join the Strathmore international students WhatsApp group. https://chat.whatsapp.com/5y93fWIahik9DV0VGJiLDK/ - The university also offers health and wellness resources, including counselling services, medical centres, and student support groups.
+
+Portal: https://siso.strathmore.edu/login ## Visa Options ### Visa Guidelines Planning your exciting journey to Kenya to begin your studies at Strathmore University? We've prepared some crucial information to ensure a smooth arrival process. #### Electronic Travel Authorization (eTA) Requirement As of January 5, 2024, all travellers, including international students, require an approved Electronic Travel Authorization (eTA) before entering Kenya.
+
+There are exemptions for certain individuals, such as Kenyan citizens, residents with valid permits, and diplomats. You can find a complete list of exemptions on the official Kenyan Immigration Services website: https://immigration.go.ke/ #### Applying for Your eTA For most international students, an eTA application will be necessary. You can apply online through the official eTA website: https://www.etakenya.go.ke/en.
+
+#### Documents Required for eTA Application - Valid passport (at least 6 months remaining validity) - Passport-size photo - Contact information (email and phone number) - Travel itinerary details (arrival and departure flights) - Accommodation booking confirmations - Payment method (credit/debit card) NB: The eTA application typically takes three (3) working days to process, but it can take longer in some cases. We recommend applying well in advance of your travel date to avoid any delays.
+
+Download the list of requirements from the website. Register yourself with the international students office via this portal. Click on access portal to proceed.
+
+## Our Student Activities ### Embassy Visits and City Tour In order to facilitate a seamless adjustment to university life in Kenya, we urge all International students to: - Make contact with their embassy in Nairobi to find out about the easily accessible materials and assistance programs provided by the embassy of their home country, which will help them feel at home and connected.
+
+The University organises visits to respective embassies every year, please make sure to join your community's WhatsApp group for updates. - Take a guided tour of Nairobi city: Discover important buildings, parks, historical locations, and famous landmarks to help pupils understand the city's distinct personality and explore it with ease.
+
+to get used to their new surroundings: These first-semester programs are designed to help students settle into university life and create a feeling of community in their new settings.The University organises city tours for every intake, please make sure you join the International Student's WhatsApp group or mailing group for updates.
+
+You will receive advice on both local and international opportunities, as well as guidance on the necessary documentation for obtaining work permits. For assistance and updates, please write to careerservices@strathmore.edu. ### Team Buildings Through fun activities, we help international students develop social skills and collaboration.
+
+These programs, which are run by the International Students Office, include group mountain climbs, park outings, and game days that give them a sense of community and welcome. ### Sports Expeditions Take advantage of our broad sports program at our institution to improve your social and physical well-being. You may get guidance in your sports endeavours from our highly skilled and committed coaching team, whether you're seeking recreational activities or competitive challenges.
+
+Every major sport has a team that represents the university in league games and intercollegiate contests, which we are delighted to announce. All International students, regardless of country, are eligible for these possibilities. Students from abroad are especially welcome to take part!
+
+Getting on a team is an excellent method to: - Become more physically fit - Make connections with other students - Create enduring friendships To support your sporting endeavours, we have the international students football tournaments every year during the international students week. Every international student is required to be part of a team representing a country or a region! Please write to sisa@strathmore.edu for assistance with the registration.
+
+### Buddy System #### What is the program about? This program pairs newly arrived international students with current Strathmore students who act as your buddies.
+
+Your buddy will provide guidance and support throughout your academic journey, helping you navigate: - University life: Getting used to the academic standards, student life, and campus culture - Living in Kenya: Getting by on a daily basis, acclimating to the surroundings, and getting to necessary supplies - Social Integration: Making friends, interacting with other students, and taking part in extracurricular activities are all aspects of social integration #### Benefits of the Program -
+
+Personalised support: Get direction and counsel from a fellow pupil who is aware of your particular circumstances - Cultural exchange: Learn from your friend about university life and Kenyan culture - Smoother transition: Go through your new surroundings with greater assurance and readiness - Increased network strength: Create enduring ties and friendships within the Strathmore community #### How to Participate - As soon as you register in our system: You'll be paired with a friend and
+
+immediately registered in the program - Make contact with your friend: The Office of the Dean of Students will arrange the first meeting - Develop your partnership: Make the effort to get in touch with your friend, pose inquiries, and request assistance as required Register to request a Buddy: https://siso.strathmore.edu/login ## Immigration ### Immigration Responsibilities for International Students in Kenya International students enrich our academic and cultural landscape.
+
+However, to pursue higher education in Kenya, an international student must adhere to specific immigration regulations. Here's an overview of your key responsibilities: #### Legal Entry and Stay - Please make sure that all payments are done via the ecitizen portal while seeking immigration assistance at the points of entry. Beware of people parading themselves as immigration officers at the points of entry.
+
+- It is your duty to ensure that your details are recorded in the border control system before entering the country else you will have gained entry into the country illegally. - Make sure you obtain a valid stamp authorising your entry into the country at all times. The stamp is issued at the immigration points only and not any other point. - The stamp issued remains valid for a certain duration after which it expires.
+
+Always make sure that you check the stamp for validity and seek extension assistance before expiry until you obtain a student pass. - The most crucial immigration document for any international student in Kenya is a Student Pass. - It is an offence to receive education or training at any educational or training establishment within Kenya without a pupil's pass (section 30 (7) of the Kenya Citizenship and Immigration Regulations,2012).
+
+#### Immigration Preparedness To ensure a smooth arrival and avoid unnecessary delays or the possibility of being turned back, possessing all required documentation is crucial before travelling to Kenya as an international student. Download the list of requirements from the website. Register yourself with the international students office via this portal. Click on the access portal to proceed.
+
+### Internship/Research Pass/Permit This is a document issued to person(s) seeking to enter and remain in Kenya for the purpose of undertaking Internship or academic research within kenya. The applicant must be accepted as an intern or researcher in an institution within Kenya. #### Application Requirements 1. A duly filled, signed and stamped application Form 30, by the institution's authorised personel (Both new and renewal cases) 2.
+
+This document is issued under section 30(1) of the Kenya Citizenship and Immigration Regulations (2012) and requires prior acceptance into an approved educational or training institution. #### Application Requirements 1. A duly filled, signed and stamped application Form 30, by the institution's authorised personel (Both new and renewal cases). You will print out the form at the end of the application for a Student pass.
+
+Certified copies of progress report/transcripts obtained(by the issuing institution) -for renewal cases 11. Police Clearance Certificate from the country of origin, or if a resident, from the Kenya Police Service Notice!
+
+But, everyone is required to apply and obtain a student pass ### Alien Card Kenya's Citizenship and Immigration Act of 2011 (Part VII, Section 56) mandates the registration of all foreign nationals residing in Kenya for periods exceeding 90 days. The Act defines a foreign national as anyone who is not a Kenyan citizen. Registration Certificate Validity for General Foreign Nationals is up to two (2) years and Permanent Residence Permit Holders up to three (3) years of validity.
+
+If the application is for a renewal the applicant will be required to produce a previous foreign certificate Notice! - For lost alien cards, the applicant will be required to produce a valid police abstract as proof of loss - A foreign national's registration certificate remains the property of the Kenya government.
+
+The holder shall surrender it to the nearest immigration officer when s/he ceases to reside in Kenya or to at the port of departure from Kenya - Kindly note that penalty in form of arrears will be charged at Kshs.1000 for every year or part thereof for the years not registered since the commencement of the residency ## Resources ### UniCare Medical Insurance Medical Coverage for international students studying in Strathmore University, Kenya, is available to all students who have met the
+
+university admission criteria and qualify for the Kenyan student pass/visa award. The university, in conjunction with Jubilee insurance group, is offering the international students an in-patient medical cover for up to 500,000 Kenya shillings per annum. The cover will also include pre-existing medical conditions but more details on the arrangement can be communicated upon request or through the fliers available at our desks and in soft copy.
+
+All international students are required to purchase this cover on admission as part of the requirements. For assistance with the cover, please send an email to studentpass@strathmore.edu With uniCare, students can rest assured knowing they have access to key benefits, including: - Inpatient limit of Kes. 500,000 - Covid-19 coverage of Kes. 200,000 - Pre-existing and chronic conditions covered up to Kes.
+
+250,000 - Emergency road and air evacuation services - Day care surgery treatment - Hospitalisation and diagnostic services #### Enrollment Simply fill out the Jubilee Health Insurance application forms available at our website downloads page or at the University International students office then pay the subscription fees of KES 12,599 through the paybill on the insurance write up that is downloadable here.
+
+#### Important Notice The coverage period for this group policy runs from February 1st to January 31st of the following year. Please note that the renewal date is uniform for all members, regardless of their subscription date. Renewals must be completed before February 1st each year.
+
+### The Kenya Revenue Authority Personal Identification Number (KRA PIN) This is a unique identifier used by individuals and businesses for filing taxes, interacting with government agencies, and accessing certain services in Kenya. #### Requirements as Resident Valid Permit holders are considered residents.
+
+- Alien ID Card details - Business registration certificate details for those in business #### Students - Original and copy of Valid Passport - Endorsement of student pass in the passport - Original and copy of valid student pass - Original and copy of Letter of introduction/Admission from institution as per the student pass - KRA PIN application acknowledgement receipt ### Are you in need of a local bank account?
+
+At Strathmore University, we understand the importance of having a convenient and secure way to manage your finances while studying abroad. That's why we've partnered with local banks to offer a hassle-free process for opening a local student bank account.
+
+#### Benefits of a Local Bank Account: - Easy access to your funds: Receive funds, make purchases, and manage your money with a local debit card - Reduced transaction fees: Avoid high international transaction charges on your home bank account - Peace of mind: Keep your finances secure with a reputable local bank #### Eligibility Requirements: To be eligible to open a student bank account through our partner banks, you must meet the following criteria: - Be Legally in the country!
+
+for more information and assistance with opening your bank account. Our friendly staff will guide you through the process and connect you with a participating local bank. We look forward to welcoming you to Strathmore University! ### Kenya National Qualification Authority (KNQA) The Kenya National Qualifications Authority (KNQA) is a regulatory body established to oversee and coordinate the development of a national qualifications framework in Kenya.
+
+Its role includes the recognition and alignment of foreign academic qualifications with Kenyan standards, ensuring the quality and comparability of qualifications from different educational systems.
+
+#### Below are steps for Equating a Foreign Academic Document into the Kenyan System ##### Documents Certification: Ensure that the following documents are notarized or certified by a lawyer or advocate as true copies of their originals: - Passport biodata page - Final diploma/certificate (with a certified translation if the original is not in English) - Academic transcript (with a certified translation if the original is not in English) ##### Submitting an Application: Below are the simple
+
+steps to follow: 1. Visit the KNQA portal via: https://qa.knqa.go.ke, create an account as an applicant and verify it 2. Login with your username and password 3. Navigate to My Actions tab 4. Select My Applications 5. Click on Make New Application 6. Submit your request for the alignment of your academic documents. Remember to select Align into KNQF (not validation) 7. The current fee is KSh 10,050.
+
+After making the payment, obtain the official receipt Share the receipt with the university via knqa@strathmore.edu for assistance in tracking the process. --- **Contact Information:** (254) 703 034 463 studentpass@strathmore.edu https://www.instagram.com/strathmore.university/ https://twitter.com/StrathU https://www.facebook.com/StrathmoreUniversity/ https://ke.linkedin.com/school/strathmore-university/
+

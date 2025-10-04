@@ -1,0 +1,2 @@
+# Student Accommodation Options Near Strathmore University ## Female Student Hostels ### Premium Accommodations **Keri Residence** - Location: Madaraka, next to Strathmore University - Price range: KShs 22,500/- to KShs 32,500/- - Contact: enquiries.keri@gmail.com | Tel: 0703 034480 - Note: Limited capacity ### Block Student Residences *Privately run hostels around campus with options for single, twin and cluster rooms* - Price range: KShs 13,000/- to KShs 40,000/- **DEFOCA – Mukuru Studyville**
+

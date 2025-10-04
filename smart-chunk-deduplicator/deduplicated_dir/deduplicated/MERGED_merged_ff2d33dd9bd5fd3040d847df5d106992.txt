@@ -1,0 +1,9 @@
+
+
+--- MERGED CHUNK (from 2 sources) ---
+
+Definitions: - **Information and Communication Technology Resources (ICT Resources)** include application systems, Information, ICT infrastructure and people owned by, or under the jurisdiction of, the University. - **Applications Systems** are the automated user systems and manual procedures that process the information. - **Information** is the data, in all their forms, input, processed and output by the information systems in whatever form is used by the business.
+
+--- Additional Information ---
+- **ICT Infrastructure** is the technology and facilities that enable the processing of the applications. - **People** are the personnel required to plan, organize, acquire, implement, deliver, support, monitor and evaluate the information systems and services. - **ICT resources' owners** are designated individuals under whose jurisdiction particular information system resources have been placed.
+

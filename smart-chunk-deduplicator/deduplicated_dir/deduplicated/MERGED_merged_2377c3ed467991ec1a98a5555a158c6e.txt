@@ -1,0 +1,9 @@
+
+
+--- MERGED CHUNK (from 2 sources) ---
+
+The penetration tester can perform specified attacks in high detail depending on the objectives sought. Advanced techniques, tools, and utilities are used to achieve this by a security consultant. Generally, this exercise is aimed at evaluating the level and effectiveness of systems hardening to advise on the existing vulnerabilities. #### Learning Outcomes The need for highly skilled individuals to harden systems as a security measure is paramount.
+
+--- Additional Information ---
+This is due to the rising cyber incidents that are posing threats to business environments, different organizations, and even critical infrastructure affecting a country. A penetration tester subjects a system or a range of systems to real-life security tests.
+

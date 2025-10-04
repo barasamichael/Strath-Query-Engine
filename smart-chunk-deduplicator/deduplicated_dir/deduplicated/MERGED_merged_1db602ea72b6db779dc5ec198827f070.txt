@@ -1,0 +1,6 @@
+
+
+--- MERGED CHUNK (from 2 sources) ---
+
+He has successfully supervised several master's students with a success rate of 90% from 2022 and over 130 undergraduate projects with a success rate of 99% from 2015; where "success" implies shortlisted for the final defence after the proposal was accepted, defended their research, and passed their defence. He is also currently co-supervising 1 PhD student working on a thesis titled, "Deep Learning Model for Cardinality Estimation of Multi-Attribute Queries in a Cost-Based Query Optimizer".
+

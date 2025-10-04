@@ -1,0 +1,54 @@
+Smart Chunk Deduplication Summary
+===============================
+
+Chunk Size: 500, Chunk Overlap: 50
+Similarity Threshold: 0.92
+
+Original Chunks: 1881
+Deduplicated Chunks: 1459
+Merged Chunks: 152
+Unchanged Chunks: 1307
+
+Text Reduction: 11911 characters (1.60%)
+
+Top Merged Chunks (by information score):
+  1. Merged from 3 chunks across 1 files
+     Information score: 0.6988
+     First 100 chars: . Journal of Advances in Computer Engineering and Technology, 6(2), pp. 107-118. http://www.si journ...
+
+  2. Merged from 2 chunks across 1 files
+     Information score: 0.6980
+     First 100 chars: . Muganda B. & Shibwabo B. K. (2023). A Hybrid Predictive Prototype for Portfolio Selection using Pr...
+
+  3. Merged from 4 chunks across 1 files
+     Information score: 0.6972
+     First 100 chars: . International Journal of Scientific Research in Computer Science, Engineering and Information Tech...
+
+  4. Merged from 2 chunks across 1 files
+     Information score: 0.6916
+     First 100 chars: . Shibwabo, B. K., & Lukandu, I. A. (2024). Data Recovery of Flash Memory. Nanocrystals in Nonvolati...
+
+  5. Merged from 2 chunks across 1 files
+     Information score: 0.6900
+     First 100 chars: . Vol. 11 (1), pp. 1-12. Available at http://dx.doi.org/10.20470/jsi.v11i1.385 Kenga Mosoti Derdus, ...
+
+  6. Merged from 4 chunks across 1 files
+     Information score: 0.6870
+     First 100 chars: . To conduct Joint research, particularly around Challenge-Driven Education | 1. Strathmore Universi...
+
+  7. Merged from 2 chunks across 1 files
+     Information score: 0.6859
+     First 100 chars: . For unsuccessful candidates, share rejection letters and recommendation | ### Financial Aid Schedu...
+
+  8. Merged from 22 chunks across 3 files
+     Information score: 0.6800
+     First 100 chars: . ### Entry Requirements 1. Holders of First Class (GPA of 3.45 – 4) or Upper Second Class (GPA of 2...
+
+  9. Merged from 4 chunks across 1 files
+     Information score: 0.6618
+     First 100 chars: . - Interviews are held on Tuesdays and Thursdays at 8:00 am - Candidates are required to bring Orig...
+
+  10. Merged from 2 chunks across 1 files
+     Information score: 0.6478
+     First 100 chars: . Julius Kilonzi Charles, Peter Musau Moses, Jackson Mwangi Mbuthia; "Metaheuristic-based Adaptive H...
+
