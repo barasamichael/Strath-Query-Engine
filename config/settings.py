@@ -44,6 +44,7 @@ class APIConfig(BaseModel):
     host: str
     port: int
     debug: bool
+    api_key: str
 
 
 class Settings(BaseModel):

@@ -1,5 +1,4 @@
 {
-  "timestamp": "2025-10-04 15:38:40,613",
   "chunk_size": 500,
   "chunk_overlap": 50,
   "similarity_threshold": 0.92,
@@ -21,8 +20,8 @@
         "c020ab242d97f7e92953bfe0b6bfaf88_0019"
       ],
       "source_files": [
-        "/home/gitahi/KnowStrath/data/raw/sces.md",
-        "/home/gitahi/KnowStrath/data/raw/strathmore_handbook.md"
+        "/home/gitahi/KnowStrath/data/raw/strathmore_handbook.md",
+        "/home/gitahi/KnowStrath/data/raw/sces.md"
       ],
       "information_score": 0.22390000000000002
     },
@@ -33,8 +32,8 @@
         "ee9b62883536e822f30f416e29de002f_0077"
       ],
       "source_files": [
-        "/home/gitahi/KnowStrath/data/raw/sces.md",
-        "/home/gitahi/KnowStrath/data/raw/student_affairs.md"
+        "/home/gitahi/KnowStrath/data/raw/student_affairs.md",
+        "/home/gitahi/KnowStrath/data/raw/sces.md"
       ],
       "information_score": 0.6354
     },
@@ -229,8 +228,8 @@
         "3cf511cb8b72747dfc84362e3616deae_0049"
       ],
       "source_files": [
-        "/home/gitahi/KnowStrath/data/raw/sces.md",
-        "/home/gitahi/KnowStrath/data/raw/sth.md"
+        "/home/gitahi/KnowStrath/data/raw/sth.md",
+        "/home/gitahi/KnowStrath/data/raw/sces.md"
       ],
       "information_score": 0.5369333333333334
     },
@@ -734,9 +733,9 @@
         "ea180a5a2011cb5f24665febed144ef8_0051"
       ],
       "source_files": [
-        "/home/gitahi/KnowStrath/data/raw/strathmore_handbook.md",
         "/home/gitahi/KnowStrath/data/raw/2023_statutes.md",
-        "/home/gitahi/KnowStrath/data/raw/generic.md"
+        "/home/gitahi/KnowStrath/data/raw/generic.md",
+        "/home/gitahi/KnowStrath/data/raw/strathmore_handbook.md"
       ],
       "information_score": 0.47750000000000004
     },
@@ -751,8 +750,8 @@
         "c020ab242d97f7e92953bfe0b6bfaf88_0159"
       ],
       "source_files": [
-        "/home/gitahi/KnowStrath/data/raw/strathmore_handbook.md",
-        "/home/gitahi/KnowStrath/data/raw/2023_statutes.md"
+        "/home/gitahi/KnowStrath/data/raw/2023_statutes.md",
+        "/home/gitahi/KnowStrath/data/raw/strathmore_handbook.md"
       ],
       "information_score": 0.37823333333333337
     },
@@ -902,9 +901,9 @@
         "f878a6c1b3c77c998d4e978ad758bded_0224"
       ],
       "source_files": [
-        "/home/gitahi/KnowStrath/data/raw/student_council.md",
         "/home/gitahi/KnowStrath/data/raw/2023_statutes.md",
-        "/home/gitahi/KnowStrath/data/raw/strathmore_handbook.md"
+        "/home/gitahi/KnowStrath/data/raw/strathmore_handbook.md",
+        "/home/gitahi/KnowStrath/data/raw/student_council.md"
       ],
       "information_score": 0.5812
     },
@@ -1030,8 +1029,8 @@
         "ea180a5a2011cb5f24665febed144ef8_0013"
       ],
       "source_files": [
-        "/home/gitahi/KnowStrath/data/raw/strathmore_handbook.md",
-        "/home/gitahi/KnowStrath/data/raw/generic.md"
+        "/home/gitahi/KnowStrath/data/raw/generic.md",
+        "/home/gitahi/KnowStrath/data/raw/strathmore_handbook.md"
       ],
       "information_score": 0.29610000000000003
     },
@@ -1044,8 +1043,8 @@
         "ea180a5a2011cb5f24665febed144ef8_0026"
       ],
       "source_files": [
-        "/home/gitahi/KnowStrath/data/raw/strathmore_handbook.md",
-        "/home/gitahi/KnowStrath/data/raw/generic.md"
+        "/home/gitahi/KnowStrath/data/raw/generic.md",
+        "/home/gitahi/KnowStrath/data/raw/strathmore_handbook.md"
       ],
       "information_score": 0.5232
     },
@@ -1057,8 +1056,8 @@
         "ea180a5a2011cb5f24665febed144ef8_0022"
       ],
       "source_files": [
-        "/home/gitahi/KnowStrath/data/raw/strathmore_handbook.md",
-        "/home/gitahi/KnowStrath/data/raw/generic.md"
+        "/home/gitahi/KnowStrath/data/raw/generic.md",
+        "/home/gitahi/KnowStrath/data/raw/strathmore_handbook.md"
       ],
       "information_score": 0.388
     },
@@ -1070,8 +1069,8 @@
         "ea180a5a2011cb5f24665febed144ef8_0028"
       ],
       "source_files": [
-        "/home/gitahi/KnowStrath/data/raw/strathmore_handbook.md",
-        "/home/gitahi/KnowStrath/data/raw/generic.md"
+        "/home/gitahi/KnowStrath/data/raw/generic.md",
+        "/home/gitahi/KnowStrath/data/raw/strathmore_handbook.md"
       ],
       "information_score": 0.6139
     },
@@ -1082,8 +1081,8 @@
         "ea180a5a2011cb5f24665febed144ef8_0029"
       ],
       "source_files": [
-        "/home/gitahi/KnowStrath/data/raw/strathmore_handbook.md",
-        "/home/gitahi/KnowStrath/data/raw/generic.md"
+        "/home/gitahi/KnowStrath/data/raw/generic.md",
+        "/home/gitahi/KnowStrath/data/raw/strathmore_handbook.md"
       ],
       "information_score": 0.4586
     },
@@ -1106,8 +1105,8 @@
         "c020ab242d97f7e92953bfe0b6bfaf88_0039"
       ],
       "source_files": [
-        "/home/gitahi/KnowStrath/data/raw/strathmore_handbook.md",
-        "/home/gitahi/KnowStrath/data/raw/mentoring.md"
+        "/home/gitahi/KnowStrath/data/raw/mentoring.md",
+        "/home/gitahi/KnowStrath/data/raw/strathmore_handbook.md"
       ],
       "information_score": 0.22950000000000004
     },
@@ -1258,8 +1257,8 @@
         "725ff632bfc62da97d5801cc9094c6ac_0054"
       ],
       "source_files": [
-        "/home/gitahi/KnowStrath/data/raw/strathmore_handbook.md",
-        "/home/gitahi/KnowStrath/data/raw/mentoring.md"
+        "/home/gitahi/KnowStrath/data/raw/mentoring.md",
+        "/home/gitahi/KnowStrath/data/raw/strathmore_handbook.md"
       ],
       "information_score": 0.32000000000000006
     },
@@ -1272,8 +1271,8 @@
         "725ff632bfc62da97d5801cc9094c6ac_0056"
       ],
       "source_files": [
-        "/home/gitahi/KnowStrath/data/raw/strathmore_handbook.md",
-        "/home/gitahi/KnowStrath/data/raw/mentoring.md"
+        "/home/gitahi/KnowStrath/data/raw/mentoring.md",
+        "/home/gitahi/KnowStrath/data/raw/strathmore_handbook.md"
       ],
       "information_score": 0.27083333333333337
     },
@@ -1511,8 +1510,8 @@
         "07bec566cd2a8dfe0bc0d7e39ad4f8fc_0005"
       ],
       "source_files": [
-        "/home/gitahi/KnowStrath/data/raw/strathmore_handbook.md",
         "/home/gitahi/KnowStrath/data/raw/student_affairs.md",
+        "/home/gitahi/KnowStrath/data/raw/strathmore_handbook.md",
         "/home/gitahi/KnowStrath/data/raw/siso.md"
       ],
       "information_score": 0.33563333333333334
@@ -1531,8 +1530,8 @@
         "eb54248a9338b83751ba0cdedb9f0543_0003"
       ],
       "source_files": [
-        "/home/gitahi/KnowStrath/data/raw/strathmore_handbook.md",
         "/home/gitahi/KnowStrath/data/raw/student_affairs.md",
+        "/home/gitahi/KnowStrath/data/raw/strathmore_handbook.md",
         "/home/gitahi/KnowStrath/data/raw/student_pass_application_requirements.md"
       ],
       "information_score": 0.6083333333333333
@@ -1600,8 +1599,8 @@
         "ea180a5a2011cb5f24665febed144ef8_0016"
       ],
       "source_files": [
-        "/home/gitahi/KnowStrath/data/raw/generic.md",
-        "/home/gitahi/KnowStrath/data/raw/foundation.md"
+        "/home/gitahi/KnowStrath/data/raw/foundation.md",
+        "/home/gitahi/KnowStrath/data/raw/generic.md"
       ],
       "information_score": 0.36960000000000004
     },

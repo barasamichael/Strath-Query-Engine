@@ -35,3 +35,4 @@ api:
   host: 0.0.0.0
   port: 8000
   debug: true
+  api_key: "your_secure_random_key_here"

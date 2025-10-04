@@ -1,6 +1,6 @@
 import logging
 import uvicorn
-from api.endpoints.main import app
+from api.main import app
 from config.settings import settings
 
 # Configure logging

@@ -3,18 +3,22 @@ from typing import Any
 from typing import List
 from typing import Dict
 from typing import Optional
+from functools import wraps
 
+from fastapi import Header
+from fastapi import Depends
 from fastapi import FastAPI
+from fastapi import Security
 from fastapi import HTTPException
+from fastapi.security import APIKeyHeader
 
 from pydantic import BaseModel
 
 from config.settings import settings
-from services.chunking.document_processor import DocumentProcessor
-from services.retrieval.embeddings import EmbeddingService
-from services.retrieval.vector_db import VectorDBService
-from services.generation.intent_recognizer import IntentRecognizer
-from services.generation.response_generator import ResponseGenerator
+from services.vector_db import VectorDBService
+from services.embeddings import EmbeddingService
+from services.intent_recognizer import IntentRecognizer
+from services.response_generator import ResponseGenerator
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO)
@@ -27,15 +31,39 @@ app = FastAPI(
     version="0.1.0",
 )
 
+# API Key security
+API_KEY = settings.api.api_key
+API_KEY_NAME = "Authorization"
+api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
+
 # Initialize services
 embedding_service = EmbeddingService()
 vector_db_service = VectorDBService(embedding_service=embedding_service)
 intent_recognizer = IntentRecognizer()
 response_generator = ResponseGenerator()
 
+
+# Dependency for API key validation
+async def get_api_key(api_key_header: str = Security(api_key_header)):
+    if not api_key_header:
+        raise HTTPException(
+            status_code=401,
+            detail="Missing API Key",
+        )
+
+    # Extract token from "Bearer {token}" format
+    if api_key_header.startswith("Bearer "):
+        api_key_header = api_key_header.split(" ")[1]
+
+    if api_key_header != API_KEY:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid API Key",
+        )
+    return api_key_header
+
+
 # Pydantic models for API requests and responses
-
-
 class QueryRequest(BaseModel):
     query: str
     top_k: int = 5
@@ -47,67 +75,21 @@ class QueryResponse(BaseModel):
     intent_type: str
     topic: str
     confidence: float
-    retrieved_chunks: Optional[List[Dict[str, Any]]] = None
     token_usage: Optional[Dict[str, int]] = None
-
-
-class ProcessDocumentRequest(BaseModel):
-    file_path: str
-
-
-class ProcessDocumentResponse(BaseModel):
-    status: str
-    message: str
-    document_metadata: Optional[Dict[str, Any]] = None
+    retrieved_chunks: Optional[List[Dict[str, Any]]] = None
 
 
 # Health check endpoint
-
-
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
 
 
-# Process document endpoint
-
-
-@app.post("/process-document", response_model=ProcessDocumentResponse)
-async def process_document(request: ProcessDocumentRequest):
-    try:
-        document_processor = DocumentProcessor()
-        metadata = document_processor.process_document(request.file_path)
-
-        if not metadata:
-            return ProcessDocumentResponse(
-                status="error",
-                message=f"Failed to process document: {request.file_path}",
-            )
-
-        # Embed chunks
-        chunks_path = metadata["chunks_path"]
-        embedding_service.embed_chunks(chunks_path)
-
-        # Index chunks in vector database
-        vector_db_service.index_chunks(chunks_path)
-
-        return ProcessDocumentResponse(
-            status="success",
-            message=f"Document processed successfully: {metadata['doc_id']}",
-            document_metadata=metadata,
-        )
-    except Exception as e:
-        logger.error(f"Error processing document: {str(e)}")
-        return ProcessDocumentResponse(
-            status="error", message=f"Error processing document: {str(e)}"
-        )
-
-
-# Query endpoint
-
-
 @app.post("/query", response_model=QueryResponse)
-async def query(request: QueryRequest):
+async def query(
+    request: QueryRequest,
+    api_key: str = Depends(get_api_key)
+):
     try:
         # Recognize intent
         intent_info = intent_recognizer.recognize_intent(request.query)
@@ -141,45 +123,26 @@ async def query(request: QueryRequest):
         )
 
 
-# Batch process documents endpoint
-
-
-@app.post("/process-all-documents")
-async def process_all_documents():
+@app.post("/multi-query-search")
+async def multi_query_search(
+    request: QueryRequest,
+    api_key: str = Depends(get_api_key)
+):
     try:
-        document_processor = DocumentProcessor()
-        documents_metadata = document_processor.process_all_documents()
-
-        # Embed and index all documents
-        embedding_service.embed_chunks()
-        vector_db_service.index_chunks()
-
-        return {
-            "status": "success",
-            "message": f"Processed {len(documents_metadata)} documents",
-            "documents": documents_metadata,
-        }
-    except Exception as e:
-        logger.error(f"Error processing documents: {str(e)}")
-        raise HTTPException(
-            status_code=500, detail=f"Error processing documents: {str(e)}"
+        # Retrieve relevant context with multi-query approach
+        retrieved_chunks = vector_db_service.multi_query_search(
+            query=request.query,
+            top_k=request.top_k,
+            filter_doc_id=request.doc_id,
         )
 
-
-# Initialize collection endpoint
-
-
-@app.post("/initialize-collection")
-async def initialize_collection(recreate: bool = False):
-    try:
-        vector_db_service.initialize_collection(recreate=recreate)
         return {
-            "status": "success",
-            "message": f"{'Recreated' if recreate else 'Initialized'} collection "
-            + f"{settings.vector_db.collection_name}",
+            "query": request.query,
+            "chunks": retrieved_chunks,
+            "count": len(retrieved_chunks)
         }
     except Exception as e:
-        logger.error(f"Error initializing collection: {str(e)}")
+        logger.error(f"Error in multi-query search: {str(e)}")
         raise HTTPException(
-            status_code=500, detail=f"Error initializing collection: {str(e)}"
+            status_code=500, detail=f"Error in multi-query search: {str(e)}"
         )

@@ -1,7 +1,7 @@
 Smart Chunk Deduplication Summary
 ===============================
 
-Chunk Size: 500, Chunk Overlap: 50
+Chunk Size: 500, Overlap: 50
 Similarity Threshold: 0.92
 
 Original Chunks: 1881

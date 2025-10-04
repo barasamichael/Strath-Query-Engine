@@ -1,400 +1,444 @@
-import os
 import json
 import logging
-import pickle
 from pathlib import Path
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
-import numpy as np
-from tqdm import tqdm
-from sklearn.metrics.pairwise import cosine_similarity
+import chromadb
+from chromadb.config import Settings
 
-from config.settings import settings
-from config.settings import ROOT_DIR
+from config.settings import settings, ROOT_DIR
 from services.embeddings import EmbeddingService
 
-# Initialize logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("vector_db")
 
 
-class SimpleVectorDB:
-    """A simple in-memory vector database that stores embeddings and metadata."""
+class VectorDBError(Exception):
+    """Custom exception for vector database errors."""
 
-    def __init__(self):
-        self.vectors = []
-        self.metadata = []
-
-    def add_vectors(self, vectors, metadata_list):
-        """Add vectors and their metadata to the database."""
-        self.vectors.extend(vectors)
-        self.metadata.extend(metadata_list)
-
-    def search(self, query_vector, top_k=20, filter_fn=None):
-        """Search for the most similar vectors to the query vector."""
-        if not self.vectors:
-            return []
-
-        # Convert vectors to numpy array if not already
-        vectors_array = np.array(self.vectors)
-
-        # Compute similarities
-        similarities = cosine_similarity([query_vector], vectors_array)[0]
-
-        # Get indices sorted by similarity (descending)
-        sorted_indices = np.argsort(similarities)[::-1]
-
-        # Apply filter if provided
-        if filter_fn:
-            filtered_indices = [
-                idx for idx in sorted_indices if filter_fn(self.metadata[idx])
-            ]
-            sorted_indices = filtered_indices
-
-        # Get top k results
-        top_indices = sorted_indices[:top_k]
-
-        # Format results
-        results = []
-        for idx in top_indices:
-            results.append(
-                {
-                    **self.metadata[idx],
-                    "score": float(
-                        similarities[idx]
-                    ),  # Convert to Python float for serialization
-                }
-            )
-
-        return results
-
-    def save(self, path):
-        """Save the database to a file."""
-        with open(path, "wb") as f:
-            pickle.dump({"vectors": self.vectors, "metadata": self.metadata}, f)
-
-    def load(self, path):
-        """Load the database from a file."""
-        if os.path.exists(path):
-            with open(path, "rb") as f:
-                data = pickle.load(f)
-                self.vectors = data["vectors"]
-                self.metadata = data["metadata"]
-            return True
-        return False
+    pass
 
 
 class VectorDBService:
+    """Production-ready vector database service using ChromaDB."""
+
     def __init__(self, embedding_service: Optional[EmbeddingService] = None):
-        self.embedding_service = embedding_service or EmbeddingService()
-        self.dimension = self.embedding_service.dimension
-        self.collection_name = settings.vector_db.collection_name
+        try:
+            self.embedding_service = embedding_service or EmbeddingService()
+            self.dimension = self.embedding_service.dimension
+            self.collection_name = settings.vector_db.collection_name
 
-        # Initialize simple vector DB
-        self.db = SimpleVectorDB()
-
-        # Define paths
-        self.db_path = ROOT_DIR / "database" / "vector_store"
-        if not self.db_path.exists():
+            # Define ChromaDB path
+            self.db_path = ROOT_DIR / "database" / "chroma_db"
             self.db_path.mkdir(parents=True, exist_ok=True)
 
-        self.db_file = self.db_path / f"{self.collection_name}.pkl"
-        self.dedup_db_file = (
-            self.db_path / f"{self.collection_name}_deduplicated.pkl"
-        )
-
-        # Try to load existing database, preferring deduplicated if it exists
-        if os.path.exists(self.dedup_db_file):
-            self.db.load(self.dedup_db_file)
-            logger.info(
-                f"Loaded deduplicated vector database with {len(self.db.vectors)} vectors"
+            # Initialize ChromaDB client with persistent storage
+            self.client = chromadb.PersistentClient(
+                path=str(self.db_path),
+                settings=Settings(anonymized_telemetry=False, allow_reset=True),
             )
-        elif os.path.exists(self.db_file):
-            self.db.load(self.db_file)
+
+            # Get or create collection
+            self.collection = self._get_or_create_collection()
+
+            logger.info(f"ChromaDB initialized at {self.db_path}")
             logger.info(
-                f"Loaded vector database with {len(self.db.vectors)} vectors"
+                f"Collection '{self.collection_name}' has {self.collection.count()} vectors"
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to initialize ChromaDB: {str(e)}")
+            raise VectorDBError(f"Database initialization failed: {str(e)}")
+
+    def _get_or_create_collection(self):
+        """Get existing collection or create new one."""
+        try:
+            # Try to get existing collection
+            collection = self.client.get_collection(name=self.collection_name)
+            logger.info(f"Loaded existing collection: {self.collection_name}")
+            return collection
+        except Exception:
+            # Create new collection if it doesn't exist
+            logger.info(f"Creating new collection: {self.collection_name}")
+            return self.client.create_collection(
+                name=self.collection_name, metadata={"hnsw:space": "cosine"}
             )
 
     def initialize_collection(self, recreate: bool = False) -> None:
         """Initialize or recreate the vector collection."""
-        if recreate or not os.path.exists(self.db_file):
-            self.db = SimpleVectorDB()
-            logger.info(
-                f"{'Recreated' if recreate else 'Initialized'} vector database"
-            )
-        else:
-            # Try loading deduplicated version first
-            if os.path.exists(self.dedup_db_file):
-                self.db.load(self.dedup_db_file)
-                logger.info(
-                    f"Vector database already exists with {len(self.db.vectors)} vectors (deduplicated)"
+        try:
+            if recreate:
+                # Delete existing collection
+                try:
+                    self.client.delete_collection(name=self.collection_name)
+                    logger.info(
+                        f"Deleted existing collection: {self.collection_name}"
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"No existing collection to delete: {str(e)}"
+                    )
+
+                # Create new collection
+                self.collection = self.client.create_collection(
+                    name=self.collection_name, metadata={"hnsw:space": "cosine"}
                 )
+                logger.info(f"Created new collection: {self.collection_name}")
             else:
-                self.db.load(self.db_file)
                 logger.info(
-                    f"Vector database already exists with {len(self.db.vectors)} vectors"
+                    f"Collection already exists with {self.collection.count()} vectors"
                 )
+
+        except Exception as e:
+            logger.error(f"Error initializing collection: {str(e)}")
+            raise VectorDBError(f"Collection initialization failed: {str(e)}")
 
     def index_chunks(self, chunks_file: Optional[Path] = None) -> None:
-        """
-        Index all chunks from the chunks directory into the vector database.
-        If deduplicated chunks exist, use those preferentially.
-        """
-        # Check if deduplicated chunks exist
-        dedup_dir = ROOT_DIR / "data" / "deduplicated"
-        dedup_file = dedup_dir / "deduplicated_chunks.jsonl"
+        """Index chunks with deduplication preference and error recovery."""
+        try:
+            # Check for deduplicated chunks first
+            dedup_dir = ROOT_DIR / "data" / "deduplicated"
+            dedup_file = dedup_dir / "deduplicated_chunks.jsonl"
 
-        if dedup_file.exists():
-            logger.info(f"Indexing deduplicated chunks from: {dedup_file}")
-            # Reset the database to use deduplicated chunks
-            self.db = SimpleVectorDB()
+            if dedup_file.exists():
+                logger.info("Found deduplicated chunks, indexing those")
+                self._index_deduplicated_chunks(dedup_file)
+                return
 
-            # Index deduplicated chunks
-            self._index_deduplicated_chunks(dedup_file)
-
-            # Save the database
-            self.db.save(self.dedup_db_file)
-            logger.info(
-                f"Saved deduplicated vector database with {len(self.db.vectors)} vectors"
+            # Process standard chunks
+            chunks_dir = (
+                chunks_file.parent
+                if chunks_file
+                else ROOT_DIR / "data" / "chunks"
             )
-            return
 
-        # If no deduplicated chunks, process standard chunks
-        chunks_dir = (
-            chunks_file.parent if chunks_file else ROOT_DIR / "data" / "chunks"
-        )
+            if not chunks_dir.exists():
+                raise VectorDBError(f"Chunks directory not found: {chunks_dir}")
 
-        if not chunks_dir.exists():
-            logger.error(f"Chunks directory not found: {chunks_dir}")
-            return
+            files_to_process = (
+                [chunks_file]
+                if chunks_file
+                else list(chunks_dir.glob("*_chunks.jsonl"))
+            )
 
-        # Reset the database to avoid duplicates
-        self.db = SimpleVectorDB()
-        logger.info("Reset vector database to avoid duplicates")
+            if not files_to_process:
+                raise VectorDBError("No chunk files found to index")
 
-        # Process each chunks file
-        if chunks_file:
-            files_to_process = [chunks_file]
-        else:
-            files_to_process = list(chunks_dir.glob("*_chunks.jsonl"))
+            # Process each file
+            successful = 0
+            failed = 0
 
-        for chunks_file in tqdm(files_to_process, desc="Indexing files"):
-            try:
-                self._index_chunks_file(chunks_file)
-            except Exception as e:
-                logger.error(f"Error indexing {chunks_file}: {str(e)}")
+            for chunk_file in files_to_process:
+                try:
+                    self._index_chunks_file(chunk_file)
+                    successful += 1
+                except Exception as e:
+                    logger.error(f"Failed to index {chunk_file.name}: {str(e)}")
+                    failed += 1
 
-        # Save the database
-        self.db.save(self.db_file)
-        logger.info(
-            f"Saved vector database with {len(self.db.vectors)} vectors"
-        )
+            logger.info(
+                f"Indexing complete: {successful} succeeded, {failed} failed"
+            )
+            logger.info(
+                f"Total vectors in collection: {self.collection.count()}"
+            )
+
+        except Exception as e:
+            logger.error(f"Error during indexing: {str(e)}")
+            raise VectorDBError(f"Indexing failed: {str(e)}")
 
     def _index_chunks_file(self, chunks_file: Path) -> None:
-        """Index chunks from a single file into the vector database."""
-        logger.info(f"Indexing chunks from: {chunks_file}")
+        """Index chunks from a single file with embedding cost optimization."""
+        try:
+            logger.info(f"Indexing chunks from: {chunks_file.name}")
 
-        # Check if embeddings already exist
-        doc_id = chunks_file.stem.replace("_chunks", "")
-        embeddings_file = (
-            ROOT_DIR / "data" / "embeddings" / f"{doc_id}_embeddings.npz"
-        )
+            # Get document ID
+            doc_id = chunks_file.stem.replace("_chunks", "")
 
-        if not embeddings_file.exists():
-            # Generate embeddings if they don't exist
-            logger.info(
-                f"Embeddings not found for {doc_id}, generating them now"
+            # Check if embeddings exist
+            embeddings_file = (
+                ROOT_DIR / "data" / "embeddings" / f"{doc_id}_embeddings.npz"
             )
-            self.embedding_service.embed_chunks(chunks_file)
 
-        # Load embeddings
-        embeddings_data = np.load(embeddings_file)
-        embeddings = embeddings_data["embeddings"]
-        chunk_ids = embeddings_data["chunk_ids"]
+            if not embeddings_file.exists():
+                logger.info(f"Generating embeddings for {doc_id}")
+                self.embedding_service.embed_chunks(chunks_file)
 
-        # Load chunks to get full metadata
-        chunks = []
-        with open(chunks_file, "r", encoding="utf-8") as f:
-            for line in f:
-                chunks.append(json.loads(line))
+            # Load embeddings and chunks
+            embeddings_data = self.embedding_service.load_embeddings(
+                embeddings_file
+            )
+            if embeddings_data is None:
+                raise VectorDBError(f"Failed to load embeddings for {doc_id}")
 
-        # Add vectors to the database
-        vectors = []
-        metadata_list = []
+            embeddings = embeddings_data["embeddings"]
+            chunk_ids = embeddings_data["chunk_ids"]
 
-        for i, (chunk, chunk_id) in enumerate(zip(chunks, chunk_ids)):
-            if i >= len(embeddings):
+            # Load chunk metadata
+            chunks = []
+            with open(chunks_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    try:
+                        chunks.append(json.loads(line))
+                    except json.JSONDecodeError as e:
+                        logger.warning(
+                            f"Skipping invalid JSON line in {chunks_file.name}: {str(e)}"
+                        )
+
+            if len(chunks) != len(embeddings):
                 logger.warning(
-                    f"Mismatch between chunks and embeddings for {doc_id}"
+                    f"Mismatch: {len(chunks)} chunks but {len(embeddings)} embeddings"
                 )
-                break
+                min_len = min(len(chunks), len(embeddings))
+                chunks = chunks[:min_len]
+                embeddings = embeddings[:min_len]
+                chunk_ids = chunk_ids[:min_len]
 
-            # Create metadata
-            metadata = {
-                "chunk_id": chunk["chunk_id"],
-                "doc_id": chunk["doc_id"],
-                "chunk_index": chunk["chunk_index"],
-                "text": chunk["text"],
-            }
+            # Prepare data for ChromaDB
+            ids = [str(chunk["chunk_id"]) for chunk in chunks]
+            documents = [chunk["text"] for chunk in chunks]
+            metadatas = [
+                {
+                    "doc_id": chunk["doc_id"],
+                    "chunk_index": chunk["chunk_index"],
+                    "chunk_id": chunk["chunk_id"],
+                }
+                for chunk in chunks
+            ]
 
-            vectors.append(embeddings[i].tolist())
-            metadata_list.append(metadata)
+            # Add to collection in batches
+            batch_size = 100
+            for i in range(0, len(ids), batch_size):
+                batch_ids = ids[i : i + batch_size]
+                batch_embeddings = embeddings[i : i + batch_size].tolist()
+                batch_documents = documents[i : i + batch_size]
+                batch_metadatas = metadatas[i : i + batch_size]
 
-        # Add vectors to the database
-        self.db.add_vectors(vectors, metadata_list)
+                self.collection.add(
+                    ids=batch_ids,
+                    embeddings=batch_embeddings,
+                    documents=batch_documents,
+                    metadatas=batch_metadatas,
+                )
 
-        logger.info(f"Indexed {len(vectors)} chunks from {doc_id}")
+            logger.info(f"Successfully indexed {len(ids)} chunks from {doc_id}")
+
+        except Exception as e:
+            logger.error(
+                f"Error indexing chunks file {chunks_file.name}: {str(e)}"
+            )
+            raise VectorDBError(f"Failed to index {chunks_file.name}: {str(e)}")
 
     def _index_deduplicated_chunks(self, dedup_file: Path) -> None:
-        """Index deduplicated chunks into the vector database."""
-        # Check if embeddings already exist
-        embeddings_file = (
-            ROOT_DIR / "data" / "embeddings" / "deduplicated_embeddings.npz"
-        )
-
-        if not embeddings_file.exists():
-            # Generate embeddings if they don't exist
-            logger.info(
-                "Embeddings not found for deduplicated chunks, generating them now"
+        """Index deduplicated chunks with error handling."""
+        try:
+            # Check for embeddings
+            embeddings_file = (
+                ROOT_DIR / "data" / "embeddings" / "deduplicated_embeddings.npz"
             )
-            self.embedding_service.embed_deduplicated_chunks()
 
-        # Load embeddings
-        embeddings_data = np.load(embeddings_file)
-        embeddings = embeddings_data["embeddings"]
-        chunk_ids = embeddings_data["chunk_ids"]
+            if not embeddings_file.exists():
+                logger.info("Generating embeddings for deduplicated chunks")
+                self.embedding_service.embed_deduplicated_chunks()
 
-        # Load chunks to get full metadata
-        chunks = []
-        with open(dedup_file, "r", encoding="utf-8") as f:
-            for line in f:
-                chunks.append(json.loads(line))
+            # Load embeddings and chunks
+            embeddings_data = self.embedding_service.load_embeddings(
+                embeddings_file
+            )
+            if embeddings_data is None:
+                raise VectorDBError("Failed to load deduplicated embeddings")
 
-        # Add vectors to the database
-        vectors = []
-        metadata_list = []
+            embeddings = embeddings_data["embeddings"]
 
-        for i, (chunk, chunk_id) in enumerate(zip(chunks, chunk_ids)):
-            if i >= len(embeddings):
+            # Load chunks
+            chunks = []
+            with open(dedup_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    try:
+                        chunks.append(json.loads(line))
+                    except json.JSONDecodeError as e:
+                        logger.warning(f"Skipping invalid JSON line: {str(e)}")
+
+            if len(chunks) != len(embeddings):
                 logger.warning(
-                    "Mismatch between chunks and embeddings for deduplicated chunks"
+                    f"Mismatch: {len(chunks)} chunks but {len(embeddings)} embeddings"
                 )
-                break
+                min_len = min(len(chunks), len(embeddings))
+                chunks = chunks[:min_len]
+                embeddings = embeddings[:min_len]
 
-            # Create metadata
-            metadata = {
-                "chunk_id": chunk["chunk_id"],
-                "doc_id": chunk.get("doc_id", ""),
-                "chunk_index": chunk.get("chunk_index", 0),
-                "text": chunk["text"],
-            }
+            # Prepare data
+            ids = [str(chunk["chunk_id"]) for chunk in chunks]
+            documents = [chunk["text"] for chunk in chunks]
+            metadatas = []
 
-            # Add information score if available
-            if "information_score" in chunk:
-                metadata["information_score"] = chunk["information_score"]
-            elif (
-                "metadata" in chunk and "information_score" in chunk["metadata"]
-            ):
-                metadata["information_score"] = chunk["metadata"][
-                    "information_score"
-                ]
+            for chunk in chunks:
+                metadata = {
+                    "doc_id": chunk.get("doc_id", ""),
+                    "chunk_index": chunk.get("chunk_index", 0),
+                    "chunk_id": chunk["chunk_id"],
+                }
 
-            # Add merged flag if available
-            if "merged_from" in chunk and len(chunk["merged_from"]) > 1:
-                metadata["is_merged"] = True
-                metadata["merged_from"] = chunk["merged_from"]
-            elif "metadata" in chunk and chunk["metadata"].get("merged", False):
-                metadata["is_merged"] = True
-                if "merged_from" in chunk["metadata"]:
-                    metadata["merged_from"] = chunk["metadata"]["merged_from"]
+                # Add deduplication metadata
+                if "information_score" in chunk:
+                    metadata["information_score"] = chunk["information_score"]
+                if "merged_from" in chunk:
+                    metadata["is_merged"] = True
+                    metadata["merged_count"] = len(chunk["merged_from"])
 
-            vectors.append(embeddings[i].tolist())
-            metadata_list.append(metadata)
+                metadatas.append(metadata)
 
-        # Add vectors to the database
-        self.db.add_vectors(vectors, metadata_list)
+            # Add to collection in batches
+            batch_size = 100
+            for i in range(0, len(ids), batch_size):
+                batch_ids = ids[i : i + batch_size]
+                batch_embeddings = embeddings[i : i + batch_size].tolist()
+                batch_documents = documents[i : i + batch_size]
+                batch_metadatas = metadatas[i : i + batch_size]
 
-        logger.info(f"Indexed {len(vectors)} deduplicated chunks")
+                self.collection.add(
+                    ids=batch_ids,
+                    embeddings=batch_embeddings,
+                    documents=batch_documents,
+                    metadatas=batch_metadatas,
+                )
+
+            logger.info(f"Successfully indexed {len(ids)} deduplicated chunks")
+
+        except Exception as e:
+            logger.error(f"Error indexing deduplicated chunks: {str(e)}")
+            raise VectorDBError(
+                f"Failed to index deduplicated chunks: {str(e)}"
+            )
 
     def search(
         self, query: str, top_k: int = 20, filter_doc_id: Optional[str] = None
     ) -> List[Dict[str, Any]]:
-        """Search for chunks similar to the query."""
-        # Generate query embedding
-        query_embedding = self.embedding_service.embed_query(query)
+        """Search with comprehensive error handling."""
+        try:
+            if self.collection.count() == 0:
+                logger.warning("Collection is empty")
+                return []
 
-        # Prepare filter if needed
-        filter_fn = None
-        if filter_doc_id:
+            # Generate query embedding
+            query_embedding = self.embedding_service.embed_query(query)
 
-            def filter_fn(metadata):
-                return metadata.get("doc_id") == filter_doc_id
+            if query_embedding is None:
+                raise VectorDBError("Failed to generate query embedding")
 
-        # Perform search
-        results = self.db.search(
-            query_vector=query_embedding.tolist(),
-            top_k=top_k,
-            filter_fn=filter_fn,
-        )
+            # Prepare filter
+            where_filter = {"doc_id": filter_doc_id} if filter_doc_id else None
 
-        # Boost results from high information chunks if score available
-        for result in results:
-            if "information_score" in result:
-                # Boost score by information density (slight boost)
-                result["score"] = result["score"] * (
-                    1 + 0.1 * result["information_score"]
-                )
+            # Query ChromaDB
+            results = self.collection.query(
+                query_embeddings=[query_embedding.tolist()],
+                n_results=top_k,
+                where=where_filter,
+            )
 
-        # Re-sort results by adjusted score
-        results.sort(key=lambda x: x["score"], reverse=True)
+            # Format results
+            formatted_results = []
+            if results and results["ids"] and len(results["ids"]) > 0:
+                for i in range(len(results["ids"][0])):
+                    result = {
+                        "chunk_id": results["metadatas"][0][i].get(
+                            "chunk_id", ""
+                        ),
+                        "doc_id": results["metadatas"][0][i].get("doc_id", ""),
+                        "chunk_index": results["metadatas"][0][i].get(
+                            "chunk_index", 0
+                        ),
+                        "text": results["documents"][0][i],
+                        # Convert distance to similarity
+                        "score": 1 - results["distances"][0][i],
+                    }
 
-        return results
+                    # Add optional metadata
+                    if "information_score" in results["metadatas"][0][i]:
+                        result["information_score"] = results["metadatas"][0][
+                            i
+                        ]["information_score"]
+                        # Boost score slightly for high-information chunks
+                        result["score"] = result["score"] * (
+                            1 + 0.1 * result["information_score"]
+                        )
+
+                    if results["metadatas"][0][i].get("is_merged"):
+                        result["is_merged"] = True
+                        result["merged_count"] = results["metadatas"][0][i].get(
+                            "merged_count", 0
+                        )
+
+                    formatted_results.append(result)
+
+            # Re-sort by adjusted score
+            formatted_results.sort(key=lambda x: x["score"], reverse=True)
+
+            return formatted_results
+
+        except Exception as e:
+            logger.error(f"Search error: {str(e)}")
+            raise VectorDBError(f"Search failed: {str(e)}")
 
     def multi_query_search(
         self, query: str, top_k: int = 20, filter_doc_id: Optional[str] = None
     ) -> List[Dict[str, Any]]:
-        """
-        Search using multiple query formulations to get more comprehensive results.
-        This helps retrieve more diverse and relevant chunks for complex queries.
-        """
-        # Original query results (get more of the requested chunks from direct query)
-        original_results = self.search(
-            query=query, top_k=int(top_k * 0.7), filter_doc_id=filter_doc_id
-        )
-
-        # Generate alternative query formulations that are more focused
-        alt_queries = [
-            # More specific reformulations
-            f"{query} at Strathmore University",
-            f"{query} strathmore policy",
-            f"{query} requirements strathmore",
-        ]
-
-        # Get results for alternative queries
-        all_results = original_results.copy()
-        seen_chunks = {result["chunk_id"] for result in original_results}
-
-        # Try each alternative query until we have enough results
-        for alt_query in alt_queries:
-            if len(all_results) >= top_k:
-                break
-
-            # Get results for this alternative query
-            alt_results = self.search(
-                query=alt_query, top_k=3, filter_doc_id=filter_doc_id
+        """Multi-query search with error recovery."""
+        try:
+            # Get results from original query
+            original_results = self.search(
+                query=query, top_k=int(top_k * 0.7), filter_doc_id=filter_doc_id
             )
 
-            # Add only new chunks
-            for result in alt_results:
-                if result["chunk_id"] not in seen_chunks:
-                    all_results.append(result)
-                    seen_chunks.add(result["chunk_id"])
+            # Generate alternative queries
+            alt_queries = [
+                f"{query} at Strathmore University",
+                f"{query} strathmore policy",
+                f"{query} requirements strathmore",
+            ]
 
-        # Sort by relevance score
-        all_results.sort(key=lambda x: x["score"], reverse=True)
+            all_results = original_results.copy()
+            seen_chunks = {r["chunk_id"] for r in original_results}
 
-        # Return top_k results
-        return all_results[:top_k]
+            # Try alternative queries
+            for alt_query in alt_queries:
+                if len(all_results) >= top_k:
+                    break
+
+                try:
+                    alt_results = self.search(
+                        query=alt_query, top_k=3, filter_doc_id=filter_doc_id
+                    )
+
+                    for result in alt_results:
+                        if result["chunk_id"] not in seen_chunks:
+                            all_results.append(result)
+                            seen_chunks.add(result["chunk_id"])
+
+                except Exception as e:
+                    logger.warning(f"Alternative query failed: {str(e)}")
+                    continue
+
+            # Sort and limit
+            all_results.sort(key=lambda x: x["score"], reverse=True)
+            return all_results[:top_k]
+
+        except Exception as e:
+            logger.error(f"Multi-query search error: {str(e)}")
+            # Fallback to regular search
+            try:
+                return self.search(query, top_k, filter_doc_id)
+            except:
+                return []
+
+    def get_collection_stats(self) -> Dict[str, Any]:
+        """Get collection statistics."""
+        try:
+            return {
+                "name": self.collection_name,
+                "count": self.collection.count(),
+                "dimension": self.dimension,
+            }
+        except Exception as e:
+            logger.error(f"Error getting stats: {str(e)}")
+            return {"error": str(e)}
