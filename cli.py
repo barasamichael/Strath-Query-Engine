@@ -2,9 +2,10 @@ import os
 import json
 import typer
 import logging
+from rich.table import Table
+from rich.panel import Panel
 from rich.console import Console
 from rich.logging import RichHandler
-from rich.table import Table
 
 from services.vector_db import VectorDBService
 from services.embeddings import EmbeddingService
@@ -49,7 +50,7 @@ def process_document(
     console.print(f"Processing document: [bold blue]{file_path}[/bold blue]")
 
     try:
-        metadata = document_processor.process_document(file_path)
+        metadata = document_processor.process_file(file_path)
         if not metadata:
             console.print("[bold red]Failed to process document[/bold red]")
             return
@@ -71,6 +72,44 @@ def process_document(
 
         console.print(
             "[bold green]Document successfully processed and indexed![/bold green]"
+        )
+
+    except Exception as e:
+        console.print(f"[bold red]Error:[/bold red] {str(e)}")
+
+
+@app.command()
+def process_folder(
+    folder_path: str = typer.Argument(
+        ..., help="Path to the folder containing documents to process"
+    )
+):
+    """Process all documents in a specified folder."""
+    console.print(
+        f"Processing all documents in: [bold blue]{folder_path}[/bold blue]"
+    )
+
+    try:
+        documents_metadata = document_processor.process_folder(folder_path)
+
+        if not documents_metadata:
+            console.print(
+                "[yellow]No documents found to process in the folder[/yellow]"
+            )
+            return
+
+        console.print(
+            f"Processed [bold green]{len(documents_metadata)}[/bold green] documents"
+        )
+
+        # Embed and index all processed chunks
+        console.print("Generating embeddings for all new chunks...")
+        for metadata in documents_metadata:
+            embedding_service.embed_chunks(metadata["chunks_path"])
+            vector_db_service.index_chunks(metadata["chunks_path"])
+
+        console.print(
+            "[bold green]All documents in the folder successfully processed and indexed![/bold green]"
         )
 
     except Exception as e:
@@ -110,6 +149,190 @@ def process_all_documents():
 
 
 @app.command()
+def delete_document(
+    doc_id: str = typer.Argument(..., help="Document ID to delete")
+):
+    """Delete a document and its associated chunks."""
+    console.print(f"Deleting document: [bold blue]{doc_id}[/bold blue]")
+
+    try:
+        # Get document info before deletion
+        doc_info = document_processor.get_document_info(doc_id)
+        if not doc_info:
+            console.print(
+                f"[bold yellow]Document with ID {doc_id} not found[/bold yellow]"
+            )
+            return
+
+        # Display document details before deletion
+        console.print(f"Found document: {doc_info['file_name']}")
+
+        # Confirm deletion
+        if not typer.confirm("Are you sure you want to delete this document?"):
+            console.print("Deletion canceled.")
+            return
+
+        # Delete document
+        success = document_processor.delete_document(doc_id)
+
+        if success:
+            console.print(
+                f"[bold green]Document {doc_id} successfully deleted[/bold green]"
+            )
+
+            # Inform about vector DB
+            console.print(
+                "[bold yellow]Note:[/bold yellow] You may need to rebuild your vector database"
+            )
+            console.print(
+                "Run 'initialize_collection --recreate' to rebuild the vector database with the updated documents"
+            )
+        else:
+            console.print(
+                f"[bold red]Failed to delete document {doc_id}[/bold red]"
+            )
+
+    except Exception as e:
+        console.print(f"[bold red]Error:[/bold red] {str(e)}")
+
+
+@app.command()
+def update_document(
+    file_path: str = typer.Argument(
+        ..., help="Path to the updated document file"
+    )
+):
+    """Update an existing document with a new version."""
+    console.print(f"Updating document from: [bold blue]{file_path}[/bold blue]")
+
+    try:
+        # Generate document ID from file path
+        temp_doc_id = document_processor._generate_document_id(file_path)
+
+        # Check if document exists
+        existing_doc = document_processor.get_document_info(temp_doc_id)
+        if existing_doc:
+            console.print(
+                f"Updating existing document: {existing_doc['file_name']}"
+            )
+        else:
+            console.print(
+                "[yellow]Document doesn't exist yet. Will be added as new.[/yellow]"
+            )
+
+        # Update/process document
+        metadata = document_processor.update_document(file_path)
+
+        console.print(
+            f"Document updated: [bold green]{metadata['doc_id']}[/bold green]"
+        )
+        console.print(
+            f"Created [bold green]{metadata['num_chunks']}[/bold green] chunks"
+        )
+
+        # Embed chunks
+        console.print("Generating embeddings...")
+        embedding_service.embed_chunks(metadata["chunks_path"])
+
+        # Index chunks
+        console.print("Indexing chunks in vector database...")
+        vector_db_service.index_chunks(metadata["chunks_path"])
+
+        console.print(
+            "[bold green]Document successfully updated and indexed![/bold green]"
+        )
+
+    except Exception as e:
+        console.print(f"[bold red]Error:[/bold red] {str(e)}")
+
+
+@app.command()
+def list_documents(
+    show_details: bool = typer.Option(
+        False,
+        "--details",
+        "-d",
+        help="Show detailed information about each document",
+    )
+):
+    """List all processed documents."""
+    console.print("[bold blue]Processed Documents[/bold blue]")
+
+    try:
+        documents = document_processor.list_documents()
+
+        if not documents:
+            console.print(
+                "[yellow]No documents have been processed yet.[/yellow]"
+            )
+            return
+
+        # Create and display table
+        table = Table(title=f"Processed Documents ({len(documents)})")
+        table.add_column("ID", style="cyan", no_wrap=True)
+        table.add_column("Filename", style="green")
+        table.add_column("Type", style="blue")
+        table.add_column("Chunks", style="magenta", justify="right")
+
+        if show_details:
+            table.add_column("Processed Path", style="dim")
+            table.add_column("Chunks Path", style="dim")
+
+        for doc in documents:
+            row = [
+                doc["doc_id"],
+                doc["file_name"],
+                doc["doc_type"],
+                str(doc["num_chunks"]),
+            ]
+
+            if show_details:
+                row.extend([doc["processed_path"], doc["chunks_path"]])
+
+            table.add_row(*row)
+
+        console.print(table)
+
+    except Exception as e:
+        console.print(f"[bold red]Error:[/bold red] {str(e)}")
+
+
+@app.command()
+def document_info(
+    doc_id: str = typer.Argument(
+        ..., help="Document ID to get information about"
+    )
+):
+    """Get detailed information about a specific document."""
+    try:
+        doc_info = document_processor.get_document_info(doc_id)
+
+        if not doc_info:
+            console.print(
+                f"[bold yellow]Document with ID {doc_id} not found[/bold yellow]"
+            )
+            return
+
+        # Display detailed information
+        console.print(
+            Panel.fit(
+                f"[bold blue]Document ID:[/bold blue] {doc_info['doc_id']}\n"
+                f"[bold blue]Filename:[/bold blue] {doc_info['file_name']}\n"
+                f"[bold blue]Document Type:[/bold blue] {doc_info['doc_type']}\n"
+                f"[bold blue]Number of Chunks:[/bold blue] {doc_info['num_chunks']}\n"
+                f"[bold blue]Source Path:[/bold blue] {doc_info['file_path']}\n"
+                f"[bold blue]Processed Path:[/bold blue] {doc_info['processed_path']}\n"
+                f"[bold blue]Chunks Path:[/bold blue] {doc_info['chunks_path']}\n",
+                title=f"Document Information: {doc_info['file_name']}",
+                border_style="green",
+            )
+        )
+
+    except Exception as e:
+        console.print(f"[bold red]Error:[/bold red] {str(e)}")
+
+
+@app.command()
 def initialize_collection(
     recreate: bool = typer.Option(
         False, "--recreate", "-r", help="Recreate collection if it exists"
@@ -125,6 +348,45 @@ def initialize_collection(
         vector_db_service.initialize_collection(recreate=recreate)
         console.print(
             "[bold green]Collection initialized successfully![/bold green]"
+        )
+
+    except Exception as e:
+        console.print(f"[bold red]Error:[/bold red] {str(e)}")
+
+
+@app.command()
+def rebuild_index():
+    """Rebuild the vector database index with all processed documents."""
+    console.print("[bold blue]Rebuilding vector database index[/bold blue]")
+
+    try:
+        # First check if we need to recreate the collection
+        if typer.confirm(
+            "Do you want to recreate the collection?", default=True
+        ):
+            vector_db_service.initialize_collection(recreate=True)
+            console.print(
+                "[bold green]Collection recreated successfully![/bold green]"
+            )
+
+        # Get all documents
+        documents = document_processor.list_documents()
+
+        if not documents:
+            console.print("[yellow]No documents found to index.[/yellow]")
+            return
+
+        console.print(
+            f"Found [bold green]{len(documents)}[/bold green] documents to index"
+        )
+
+        # Index each document's chunks
+        for doc in documents:
+            console.print(f"Indexing {doc['file_name']}...")
+            vector_db_service.index_chunks(doc["chunks_path"])
+
+        console.print(
+            "[bold green]Vector database index rebuilt successfully![/bold green]"
         )
 
     except Exception as e:

@@ -3,6 +3,8 @@ import logging
 from typing import Any
 from typing import Dict
 from typing import List
+from datetime import datetime
+import pytz
 
 import openai
 from openai import OpenAI
@@ -25,6 +27,19 @@ class ResponseGenerator:
         self.temperature = settings.llm.temperature
         self.max_tokens = settings.llm.max_tokens
 
+    def get_current_kenya_time(self):
+        """Get the current date and time in Kenya (UTC+3)"""
+        kenya_tz = pytz.timezone('Africa/Nairobi')
+        current_time = datetime.now(kenya_tz)
+        
+        # Format: "Monday, October 21, 2025 14:30"
+        formatted_time = current_time.strftime("%A, %B %d, %Y %H:%M")
+        
+        # Also create a simpler format for time comparison
+        time_only = current_time.strftime("%H:%M")
+        
+        return formatted_time, time_only
+
     def generate_response(
         self,
         query: str,
@@ -34,6 +49,9 @@ class ResponseGenerator:
         """
         Generate a response to the user query based on the retrieved context and detected intent.
         """
+        # Get current time in Kenya
+        current_time_full, current_time = self.get_current_kenya_time()
+        
         # Prepare system instruction based on intent
         system_instruction = self._get_system_instruction(
             intent_info["intent_type"]
@@ -54,12 +72,21 @@ All questions should be interpreted in the context of Strathmore University unle
 If a question lacks specific context, assume it's about Strathmore University.
 """
 
+        # Add time awareness context
+        time_context = f"""
+The current date and time in Kenya (Nairobi) is: {current_time_full}
+When answering queries about class schedules or timetables, use this time to determine which classes remain for the day.
+"""
+
         # Build prompt
         messages = [
-            {"role": "system", "content": system_instruction + implicit_context},
+            {"role": "system", "content": system_instruction + implicit_context + time_context},
             {
                 "role": "user",
                 "content": f"""
+[CURRENT TIME]
+{current_time_full}
+
 [CONTEXT]
 {context_text}
 
@@ -106,6 +133,7 @@ The user's question relates to {intent_info["intent_type"].value} and appears to
                     "completion_tokens": completion_tokens,
                     "total_tokens": total_tokens,
                 },
+                "current_time": current_time_full,
             }
 
         except Exception as e:
@@ -130,6 +158,7 @@ Structure your responses clearly, using bullet points and headings when appropri
 Never make up information or hallucinate facts that aren't in the context.
 When information is truly missing, clearly state that it's not available in the handbook.
 Avoid including tangential or loosely related information that doesn't directly answer the query.
+When presenting timetable or schedule information, use well-formatted tables for clarity.
 """
 
         intent_specific_instructions = {
@@ -182,6 +211,16 @@ Keep responses concise and relevant to any questions asked.
 Keep the tone conversational but professional.
 Provide relevant information about Strathmore University that might be helpful.
 Be concise and avoid unnecessary details unless specifically requested.
+""",
+            IntentType.TIME_SENSITIVE_QUERY: """
+Use the current time information to answer time-sensitive queries accurately.
+For class schedule queries, identify the relevant timetable for the specified group.
+Present remaining classes in a well-formatted table with Time, Course, Location, and Instructor.
+Check if today falls within a semester break or holiday period based on the academic calendar.
+Format timetable information in a clear, tabular format for easy reading.
+If multiple possible timetables exist in the context, prioritize the one most relevant to the student's group.
+Include only classes that take place after the current time.
+Consider whether the student might be asking about classes in the current semester.
 """,
         }
 
@@ -262,6 +301,14 @@ Be concise and avoid unnecessary details unless specifically requested.
 11. Be concise and avoid lengthy explanations unless specifically requested.
 12. If appropriate, suggest specific topics the user might want to learn more about.
 """,
+            IntentType.TIME_SENSITIVE_QUERY: """
+9. For timetable queries, always format the information in a clear tabular structure.
+10. Use the current time to determine which classes remain for the day.
+11. Include important information such as class time, subject name, venue, and instructor.
+12. Check if the current date falls within a semester break or holiday period.
+13. If a student mentions a specific group (e.g., "ICS 3A"), focus on that group's timetable.
+14. Present only the most relevant schedule information that directly addresses the query.
+"""
         }
 
         return common_guidelines + intent_specific_guidelines.get(
