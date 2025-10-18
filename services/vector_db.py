@@ -1,7 +1,11 @@
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Union
+from typing import Optional
 
 import chromadb
 from chromadb.config import Settings
@@ -13,6 +17,78 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("vector_db")
 
 
+def ensure_path(path_input: Union[str, Path, None]) -> Optional[Path]:
+    """
+    Ensure input is converted to Path object with proper error handling.
+
+    Args:
+        path_input: String path, Path object, or None
+
+    Returns:
+        Path object or None if input was None
+
+    Raises:
+        ValueError: If path_input is not a valid path type
+    """
+    if path_input is None:
+        return None
+
+    if isinstance(path_input, Path):
+        return path_input
+
+    if isinstance(path_input, str):
+        if not path_input.strip():
+            return None
+        return Path(path_input)
+
+    raise ValueError(
+        f"Invalid path type: {type(path_input)}. Expected str, Path, or None."
+    )
+
+
+def safe_path_operation(func):
+    """
+    Decorator to safely handle path operations by converting string arguments to Path objects.
+    """
+
+    def wrapper(*args, **kwargs):
+        # Convert string paths to Path objects in args
+        new_args = []
+        for arg in args:
+            if isinstance(arg, str) and (
+                "/" in arg
+                or "\\" in arg
+                or arg.endswith(
+                    (".txt", ".json", ".jsonl", ".npz", ".md", ".pdf", ".docx")
+                )
+            ):
+                new_args.append(Path(arg))
+            else:
+                new_args.append(arg)
+
+        # Convert string paths to Path objects in kwargs
+        new_kwargs = {}
+        for key, value in kwargs.items():
+            if key.endswith(("_path", "_dir", "_file")) or key in (
+                "path",
+                "file_path",
+                "dir_path",
+                "output_path",
+                "input_path",
+                "chunks_file",
+            ):
+                if isinstance(value, str):
+                    new_kwargs[key] = Path(value)
+                else:
+                    new_kwargs[key] = value
+            else:
+                new_kwargs[key] = value
+
+        return func(*new_args, **new_kwargs)
+
+    return wrapper
+
+
 class VectorDBError(Exception):
     """Custom exception for vector database errors."""
 
@@ -20,7 +96,7 @@ class VectorDBError(Exception):
 
 
 class VectorDBService:
-    """Production-ready vector database service using ChromaDB."""
+    """Production-ready vector database service using ChromaDB with bulletproof path handling."""
 
     def __init__(self, embedding_service: Optional[EmbeddingService] = None):
         try:
@@ -28,9 +104,17 @@ class VectorDBService:
             self.dimension = self.embedding_service.dimension
             self.collection_name = settings.vector_db.collection_name
 
-            # Define ChromaDB path
-            self.db_path = ROOT_DIR / "database" / "chroma_db"
-            self.db_path.mkdir(parents=True, exist_ok=True)
+            # Define ChromaDB path with bulletproof handling
+            self.db_path = ensure_path(ROOT_DIR) / "database" / "chroma_db"
+            if not self.db_path:
+                raise VectorDBError("Invalid database path configuration")
+
+            try:
+                self.db_path.mkdir(parents=True, exist_ok=True)
+            except Exception as e:
+                raise VectorDBError(
+                    f"Failed to create database directory {self.db_path}: {str(e)}"
+                )
 
             # Initialize ChromaDB client with persistent storage
             self.client = chromadb.PersistentClient(
@@ -93,11 +177,17 @@ class VectorDBService:
             logger.error(f"Error initializing collection: {str(e)}")
             raise VectorDBError(f"Collection initialization failed: {str(e)}")
 
-    def index_chunks(self, chunks_file: Optional[Path] = None) -> None:
+    @safe_path_operation
+    def index_chunks(
+        self, chunks_file: Optional[Union[str, Path]] = None
+    ) -> None:
         """Index chunks with deduplication preference and error recovery."""
         try:
             # Check for deduplicated chunks first
-            dedup_dir = ROOT_DIR / "data" / "deduplicated"
+            dedup_dir = ensure_path(ROOT_DIR) / "data" / "deduplicated"
+            if not dedup_dir:
+                raise VectorDBError("Invalid dedup directory path")
+
             dedup_file = dedup_dir / "deduplicated_chunks.jsonl"
 
             if dedup_file.exists():
@@ -106,11 +196,16 @@ class VectorDBService:
                 return
 
             # Process standard chunks
-            chunks_dir = (
-                chunks_file.parent
-                if chunks_file
-                else ROOT_DIR / "data" / "chunks"
-            )
+            if chunks_file:
+                chunks_file = ensure_path(chunks_file)
+                if not chunks_file:
+                    raise VectorDBError("Invalid chunks file path provided")
+
+                chunks_dir = chunks_file.parent
+            else:
+                chunks_dir = ensure_path(ROOT_DIR) / "data" / "chunks"
+                if not chunks_dir:
+                    raise VectorDBError("Invalid chunks directory path")
 
             if not chunks_dir.exists():
                 raise VectorDBError(f"Chunks directory not found: {chunks_dir}")
@@ -147,8 +242,13 @@ class VectorDBService:
             logger.error(f"Error during indexing: {str(e)}")
             raise VectorDBError(f"Indexing failed: {str(e)}")
 
-    def _index_chunks_file(self, chunks_file: Path) -> None:
+    def _index_chunks_file(self, chunks_file: Union[str, Path]) -> None:
         """Index chunks from a single file with embedding cost optimization."""
+        # Ensure chunks_file is a Path object
+        chunks_file = ensure_path(chunks_file)
+        if not chunks_file:
+            raise VectorDBError("Invalid chunks file path")
+
         try:
             logger.info(f"Indexing chunks from: {chunks_file.name}")
 
@@ -156,9 +256,11 @@ class VectorDBService:
             doc_id = chunks_file.stem.replace("_chunks", "")
 
             # Check if embeddings exist
-            embeddings_file = (
-                ROOT_DIR / "data" / "embeddings" / f"{doc_id}_embeddings.npz"
-            )
+            embeddings_dir = ensure_path(ROOT_DIR) / "data" / "embeddings"
+            if not embeddings_dir:
+                raise VectorDBError("Invalid embeddings directory path")
+
+            embeddings_file = embeddings_dir / f"{doc_id}_embeddings.npz"
 
             if not embeddings_file.exists():
                 logger.info(f"Generating embeddings for {doc_id}")
@@ -229,13 +331,20 @@ class VectorDBService:
             )
             raise VectorDBError(f"Failed to index {chunks_file.name}: {str(e)}")
 
-    def _index_deduplicated_chunks(self, dedup_file: Path) -> None:
+    def _index_deduplicated_chunks(self, dedup_file: Union[str, Path]) -> None:
         """Index deduplicated chunks with error handling."""
+        # Ensure dedup_file is a Path object
+        dedup_file = ensure_path(dedup_file)
+        if not dedup_file:
+            raise VectorDBError("Invalid deduplicated file path")
+
         try:
             # Check for embeddings
-            embeddings_file = (
-                ROOT_DIR / "data" / "embeddings" / "deduplicated_embeddings.npz"
-            )
+            embeddings_dir = ensure_path(ROOT_DIR) / "data" / "embeddings"
+            if not embeddings_dir:
+                raise VectorDBError("Invalid embeddings directory path")
+
+            embeddings_file = embeddings_dir / "deduplicated_embeddings.npz"
 
             if not embeddings_file.exists():
                 logger.info("Generating embeddings for deduplicated chunks")
@@ -373,6 +482,7 @@ class VectorDBService:
 
             # Re-sort by adjusted score
             formatted_results.sort(key=lambda x: x["score"], reverse=True)
+            print(formatted_results)
 
             return formatted_results
 

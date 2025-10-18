@@ -507,6 +507,7 @@ def interactive(
         try:
             # Recognize intent
             intent_info = intent_recognizer.recognize_intent(query_text)
+            console.print(f"Intent info:\n{intent_info}\n")
 
             # Retrieve relevant context
             retrieved_chunks = []
@@ -515,10 +516,12 @@ def interactive(
                     retrieved_chunks = vector_db_service.multi_query_search(
                         query=query_text, top_k=top_k
                     )
+                    console.print(f"Retrieved chunks: \n{retrieved_chunks}\n")
                 else:
                     retrieved_chunks = vector_db_service.search(
                         query=query_text, top_k=top_k
                     )
+                    console.print(f"Retrieved chunks: \n{retrieved_chunks}\n")
 
             # Generate response
             response_data = response_generator.generate_response(
@@ -526,6 +529,7 @@ def interactive(
                 retrieved_context=retrieved_chunks,
                 intent_info=intent_info,
             )
+            console.print(f"Response Data\n{response_data}\n")
 
             console.print("\n[bold green]Response:[/bold green]")
             console.print(response_data["response"])

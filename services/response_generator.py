@@ -31,13 +31,13 @@ class ResponseGenerator:
         """Get the current date and time in Kenya (UTC+3)"""
         kenya_tz = pytz.timezone('Africa/Nairobi')
         current_time = datetime.now(kenya_tz)
-        
+
         # Format: "Monday, October 21, 2025 14:30"
         formatted_time = current_time.strftime("%A, %B %d, %Y %H:%M")
-        
+
         # Also create a simpler format for time comparison
         time_only = current_time.strftime("%H:%M")
-        
+
         return formatted_time, time_only
 
     def generate_response(
@@ -51,7 +51,7 @@ class ResponseGenerator:
         """
         # Get current time in Kenya
         current_time_full, current_time = self.get_current_kenya_time()
-        
+
         # Prepare system instruction based on intent
         system_instruction = self._get_system_instruction(
             intent_info["intent_type"]

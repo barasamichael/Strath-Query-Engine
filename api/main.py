@@ -127,6 +127,8 @@ class DocumentInfoResponse(BaseModel):
     file_path: str
     processed_path: str
     chunks_path: str
+    last_modified: float
+    processed_date: float
     success: bool = True
 
 

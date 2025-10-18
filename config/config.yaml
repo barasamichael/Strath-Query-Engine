@@ -26,7 +26,7 @@ chunking:
 
 # Deduplication Configuration
 deduplication:
-  enabled: true
+  enabled: false
   similarity_threshold: 0.92
   information_weight: 0.1
 

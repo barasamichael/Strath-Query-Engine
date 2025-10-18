@@ -307,12 +307,12 @@ class IntentRecognizer:
 
         # Check for time-sensitive schedule queries first
         schedule_keywords = [
-            "class today", "remaining classes", "classes left", 
+            "class today", "remaining classes", "classes left",
             "schedule today", "timetable", "upcoming class",
             "next class", "what's next", "what is next",
             "today's classes", "today's schedule", "class now"
         ]
-        
+
         for keyword in schedule_keywords:
             if keyword in query.lower():
                 return {
