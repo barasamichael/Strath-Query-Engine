@@ -18,6 +18,7 @@ class IntentType(str, Enum):
     CLARIFICATION = "clarification"
     FEEDBACK = "feedback"
     GENERAL_CHAT = "general_chat"
+    TIME_SENSITIVE_QUERY = "time_sensitive_query"  # New intent type
 
 
 class TopicCategory(str, Enum):
@@ -29,6 +30,7 @@ class TopicCategory(str, Enum):
     STUDENT_LIFE = "student_life"
     EVENTS = "events"
     GENERAL = "general"
+    SCHEDULE = "schedule"  # New topic category
     OTHER = "other"
 
 
@@ -100,6 +102,16 @@ class IntentRecognizer:
                 r"^how are you",
                 r"nice to meet",
                 r"good (morning|afternoon|evening)",
+            ],
+            IntentType.TIME_SENSITIVE_QUERY: [
+                r"class(es)? (today|remaining|left)",
+                r"schedule (today|now|remaining)",
+                r"what('s| is) next",
+                r"upcoming (class|classes)",
+                r"what do I have (today|left|now)",
+                r"time(table)?",
+                r"(today|tomorrow|current) class(es)?",
+                r"class(es)? (for|on) today",
             ],
         }
 
@@ -235,6 +247,27 @@ class IntentRecognizer:
                 "celebration",
                 "meeting",
             ],
+            TopicCategory.SCHEDULE: [
+                "timetable",
+                "schedule",
+                "class",
+                "lecture",
+                "today",
+                "tomorrow",
+                "now",
+                "next",
+                "remaining",
+                "left",
+                "time",
+                "session",
+                "period",
+                "upcoming",
+                "week",
+                "day",
+                "morning",
+                "afternoon",
+                "evening",
+            ],
         }
 
         # Compile patterns for faster matching
@@ -270,6 +303,22 @@ class IntentRecognizer:
                     "intent_type": IntentType.CLARIFICATION,
                     "confidence": 0.8,
                     "topic": self._determine_topic(query),
+                }
+
+        # Check for time-sensitive schedule queries first
+        schedule_keywords = [
+            "class today", "remaining classes", "classes left",
+            "schedule today", "timetable", "upcoming class",
+            "next class", "what's next", "what is next",
+            "today's classes", "today's schedule", "class now"
+        ]
+
+        for keyword in schedule_keywords:
+            if keyword in query.lower():
+                return {
+                    "intent_type": IntentType.TIME_SENSITIVE_QUERY,
+                    "confidence": 0.9,
+                    "topic": TopicCategory.SCHEDULE,
                 }
 
         # Check for other intent types

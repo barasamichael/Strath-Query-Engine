@@ -4,6 +4,7 @@ import logging
 import hashlib
 from typing import Dict
 from typing import List
+from typing import Union
 from pathlib import Path
 from typing import Optional
 
@@ -13,6 +14,8 @@ from openai import OpenAI
 
 from config.settings import settings
 from config.settings import ROOT_DIR
+from utilities.path import ensure_path
+from utilities.path import safe_path_operation
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("embeddings")
@@ -30,14 +33,15 @@ class EmbeddingService:
     - Cost optimization through caching
     - Hash-based validation to prevent regeneration
     - Comprehensive error handling
+    - Bulletproof path handling
     """
 
     def __init__(
         self,
         model_name: Optional[str] = None,
-        chunks_dir: Path = None,
-        embeddings_dir: Path = None,
-        dedup_dir: Path = None,
+        chunks_dir: Optional[Union[str, Path]] = None,
+        embeddings_dir: Optional[Union[str, Path]] = None,
+        dedup_dir: Optional[Union[str, Path]] = None,
     ):
         # Initialize OpenAI client
         api_key = os.getenv("OPENAI_API_KEY")
@@ -51,15 +55,27 @@ class EmbeddingService:
                 f"Failed to initialize OpenAI client: {str(e)}"
             )
 
+        # Convert all paths to Path objects with bulletproof handling
         self.model_name = model_name or settings.embedding.model
-        self.chunks_dir = chunks_dir or ROOT_DIR / "data" / "chunks"
-        self.embeddings_dir = embeddings_dir or ROOT_DIR / "data" / "embeddings"
-        self.dedup_dir = dedup_dir or ROOT_DIR / "data" / "deduplicated"
+
+        # Ensure all paths are Path objects
+        self.chunks_dir = (
+            ensure_path(chunks_dir) or ROOT_DIR / "data" / "chunks"
+        )
+        self.embeddings_dir = (
+            ensure_path(embeddings_dir) or ROOT_DIR / "data" / "embeddings"
+        )
+        self.dedup_dir = (
+            ensure_path(dedup_dir) or ROOT_DIR / "data" / "deduplicated"
+        )
 
         # Ensure all necessary directories exist
-        self.embeddings_dir.mkdir(parents=True, exist_ok=True)
-        self.chunks_dir.mkdir(parents=True, exist_ok=True)
-        self.dedup_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            self.embeddings_dir.mkdir(parents=True, exist_ok=True)
+            self.chunks_dir.mkdir(parents=True, exist_ok=True)
+            self.dedup_dir.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            raise EmbeddingError(f"Failed to create directories: {str(e)}")
 
         self.dimension = settings.embedding.dimension
 
@@ -89,8 +105,12 @@ class EmbeddingService:
         except Exception as e:
             logger.error(f"Failed to save metadata: {str(e)}")
 
-    def _calculate_file_hash(self, file_path: Path) -> str:
+    def _calculate_file_hash(self, file_path: Union[str, Path]) -> str:
         """Calculate hash of file content for change detection."""
+        file_path = ensure_path(file_path)
+        if not file_path:
+            return ""
+
         try:
             hasher = hashlib.sha256()
             with open(file_path, "rb") as f:
@@ -102,13 +122,20 @@ class EmbeddingService:
             return ""
 
     def _needs_regeneration(
-        self, chunks_file: Path, embeddings_file: Path
+        self, chunks_file: Union[str, Path], embeddings_file: Union[str, Path]
     ) -> bool:
         """
         Check if embeddings need regeneration based on:
         1. Embeddings file existence
         2. File hash comparison
         """
+        # Ensure both are Path objects
+        chunks_file = ensure_path(chunks_file)
+        embeddings_file = ensure_path(embeddings_file)
+
+        if not chunks_file or not embeddings_file:
+            return True
+
         # Check if embeddings file exists
         if not embeddings_file.exists():
             logger.info(
@@ -144,16 +171,23 @@ class EmbeddingService:
         logger.info(f"Embeddings up-to-date for: {chunks_file.name}")
         return False
 
+    @safe_path_operation
     def embed_chunks(
-        self, chunks_file: Optional[Path] = None
+        self, chunks_file: Optional[Union[str, Path]] = None
     ) -> Dict[str, np.ndarray]:
         """
         Embed chunks with intelligent caching and validation.
         Only regenerates embeddings when necessary.
         """
         try:
-            if chunks_file and chunks_file.exists():
-                return self._embed_chunks_file(chunks_file)
+            # Handle specific chunks file
+            if chunks_file:
+                chunks_file = ensure_path(chunks_file)
+                if chunks_file and chunks_file.exists():
+                    return self._embed_chunks_file(chunks_file)
+                else:
+                    logger.error(f"Chunks file not found: {chunks_file}")
+                    raise EmbeddingError(f"File not found: {chunks_file}")
 
             # Check for deduplicated chunks first
             dedup_file = self.dedup_dir / "deduplicated_chunks.jsonl"
@@ -185,9 +219,14 @@ class EmbeddingService:
             raise EmbeddingError(f"Failed to embed chunks: {str(e)}")
 
     def _embed_chunks_file(
-        self, chunks_file: Path, is_deduplicated: bool = False
+        self, chunks_file: Union[str, Path], is_deduplicated: bool = False
     ) -> Dict[str, np.ndarray]:
         """Embed chunks from a single file with caching."""
+        # Ensure chunks_file is a Path object
+        chunks_file = ensure_path(chunks_file)
+        if not chunks_file:
+            raise EmbeddingError("Invalid chunks file path")
+
         try:
             logger.info(f"Processing: {chunks_file.name}")
 
@@ -271,16 +310,22 @@ class EmbeddingService:
             )
 
     def _save_embeddings(
-        self, output_path: Path, embeddings: np.ndarray, chunk_ids: List[str]
+        self,
+        output_path: Union[str, Path],
+        embeddings: np.ndarray,
+        chunk_ids: List[str],
     ):
         """Save embeddings with atomic write."""
+        output_path = ensure_path(output_path)
+        if not output_path:
+            raise EmbeddingError("Invalid output path")
+
         temp_path = None
         try:
             # Ensure parent directory exists
             output_path.parent.mkdir(parents=True, exist_ok=True)
 
             # Create temp filename by appending to stem, not replacing suffix
-            # This prevents np.savez_compressed from creating .tmp.npz
             temp_path = output_path.parent / f"{output_path.stem}_temp.npz"
 
             # Use np.savez_compressed for better space efficiency
@@ -289,15 +334,18 @@ class EmbeddingService:
                 embeddings=np.array(embeddings),
                 chunk_ids=np.array(chunk_ids),
             )
-            
+
             # Verify temp file was created
             if not temp_path.exists():
-                raise EmbeddingError(f"Temporary file was not created: {temp_path}")
+                raise EmbeddingError(
+                    f"Temporary file was not created: {temp_path}"
+                )
 
             # Atomic rename using os.rename which is more reliable
             import os
+
             os.rename(str(temp_path), str(output_path))
-            
+
             logger.info(f"Saved embeddings to {output_path}")
 
         except Exception as e:
@@ -309,9 +357,13 @@ class EmbeddingService:
             raise EmbeddingError(f"Failed to save embeddings: {str(e)}")
 
     def _load_existing_embeddings(
-        self, embeddings_file: Path
+        self, embeddings_file: Union[str, Path]
     ) -> Dict[str, np.ndarray]:
         """Load existing embeddings file."""
+        embeddings_file = ensure_path(embeddings_file)
+        if not embeddings_file:
+            raise EmbeddingError("Invalid embeddings file path")
+
         try:
             data = np.load(embeddings_file)
             embeddings = data["embeddings"]
@@ -424,12 +476,15 @@ class EmbeddingService:
                 f"Failed to embed deduplicated chunks: {str(e)}"
             )
 
+    @safe_path_operation
     def load_embeddings(
-        self, embeddings_file: Path
+        self, embeddings_file: Optional[Union[str, Path]] = None
     ) -> Optional[Dict[str, np.ndarray]]:
         """Load embeddings from file with validation."""
         try:
-            if not embeddings_file.exists():
+            embeddings_file = ensure_path(embeddings_file)
+
+            if not embeddings_file or not embeddings_file.exists():
                 logger.error(f"Embeddings file not found: {embeddings_file}")
                 return None
 
@@ -456,10 +511,12 @@ class EmbeddingService:
             )
             return None
 
-    def clear_cache(self, chunks_file: Optional[Path] = None):
+    @safe_path_operation
+    def clear_cache(self, chunks_file: Optional[Union[str, Path]] = None):
         """Clear metadata cache for specific file or all files."""
         try:
             if chunks_file:
+                chunks_file = ensure_path(chunks_file)
                 file_key = str(chunks_file)
                 if file_key in self.embeddings_metadata:
                     del self.embeddings_metadata[file_key]

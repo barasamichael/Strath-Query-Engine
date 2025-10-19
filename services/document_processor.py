@@ -3,15 +3,16 @@ import re
 import json
 import hashlib
 import logging
-from pathlib import Path
-from dataclasses import field
-from dataclasses import dataclass
-from collections import defaultdict
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Tuple
+from typing import Union
+from pathlib import Path
 from typing import Optional
+from dataclasses import field
+from dataclasses import dataclass
+from collections import defaultdict
 
 import nltk
 import spacy
@@ -19,9 +20,9 @@ import numpy as np
 from bs4 import BeautifulSoup
 from tqdm import tqdm
 from nltk.tokenize import sent_tokenize
-from langchain.document_loaders import TextLoader
-from langchain.document_loaders import PyPDFLoader
-from langchain.document_loaders import Docx2txtLoader
+from langchain_community.document_loaders import TextLoader
+from langchain_community.document_loaders import PyPDFLoader
+from langchain_community.document_loaders import Docx2txtLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 from config.settings import ROOT_DIR
@@ -44,6 +45,77 @@ except OSError:
     logger.info("Downloading spaCy model...")
     os.system("python -m spacy download en_core_web_sm")
     nlp = spacy.load("en_core_web_sm")
+
+
+def ensure_path(path_input: Union[str, Path, None]) -> Optional[Path]:
+    """
+    Ensure input is converted to Path object with proper error handling.
+
+    Args:
+        path_input: String path, Path object, or None
+
+    Returns:
+        Path object or None if input was None
+
+    Raises:
+        ValueError: If path_input is not a valid path type
+    """
+    if path_input is None:
+        return None
+
+    if isinstance(path_input, Path):
+        return path_input
+
+    if isinstance(path_input, str):
+        if not path_input.strip():
+            return None
+        return Path(path_input)
+
+    raise ValueError(
+        f"Invalid path type: {type(path_input)}. Expected str, Path, or None."
+    )
+
+
+def safe_path_operation(func):
+    """
+    Decorator to safely handle path operations by converting string arguments to Path objects.
+    """
+
+    def wrapper(*args, **kwargs):
+        # Convert string paths to Path objects in args
+        new_args = []
+        for arg in args:
+            if isinstance(arg, str) and (
+                "/" in arg
+                or "\\" in arg
+                or arg.endswith(
+                    (".txt", ".json", ".jsonl", ".npz", ".md", ".pdf", ".docx")
+                )
+            ):
+                new_args.append(Path(arg))
+            else:
+                new_args.append(arg)
+
+        # Convert string paths to Path objects in kwargs
+        new_kwargs = {}
+        for key, value in kwargs.items():
+            if key.endswith(("_path", "_dir", "_file")) or key in (
+                "path",
+                "file_path",
+                "dir_path",
+                "output_path",
+                "input_path",
+            ):
+                if isinstance(value, str):
+                    new_kwargs[key] = Path(value)
+                else:
+                    new_kwargs[key] = value
+            else:
+                new_kwargs[key] = value
+
+        return func(*new_args, **new_kwargs)
+
+    return wrapper
 
 
 class DocumentProcessingError(Exception):
@@ -90,36 +162,32 @@ class Chunk:
 
 
 class DocumentProcessor:
-    """Production-ready document processor with comprehensive error handling."""
+    """Production-ready document processor with comprehensive error handling and bulletproof path management."""
 
     def __init__(
         self,
-        raw_dir: Path = None,
-        processed_dir: Path = None,
-        chunk_dir: Path = None,
-        dedup_dir: Path = None,
+        raw_dir: Optional[Union[str, Path]] = None,
+        processed_dir: Optional[Union[str, Path]] = None,
+        chunk_dir: Optional[Union[str, Path]] = None,
+        dedup_dir: Optional[Union[str, Path]] = None,
         embedding_service: Optional[EmbeddingService] = None,
         enable_deduplication: bool = False,
         similarity_threshold: float = 0.92,
     ):
-        self.raw_dir = raw_dir or ROOT_DIR / "data" / "raw"
-        self.processed_dir = processed_dir or ROOT_DIR / "data" / "processed"
-        self.chunk_dir = chunk_dir or ROOT_DIR / "data" / "chunks"
-        self.dedup_dir = dedup_dir or ROOT_DIR / "data" / "deduplicated"
+        # Convert all path inputs to Path objects with bulletproof handling
+        self.raw_dir = ensure_path(raw_dir) or ROOT_DIR / "data" / "raw"
+        self.processed_dir = (
+            ensure_path(processed_dir) or ROOT_DIR / "data" / "processed"
+        )
+        self.chunk_dir = ensure_path(chunk_dir) or ROOT_DIR / "data" / "chunks"
+        self.dedup_dir = (
+            ensure_path(dedup_dir) or ROOT_DIR / "data" / "deduplicated"
+        )
 
         self.enable_deduplication = enable_deduplication
         self.similarity_threshold = similarity_threshold
 
-        # Initialize embedding service
-        try:
-            self.embedding_service = embedding_service or EmbeddingService()
-        except Exception as e:
-            logger.error(f"Failed to initialize embedding service: {str(e)}")
-            raise DocumentProcessingError(
-                f"Embedding service initialization failed: {str(e)}"
-            )
-
-        # Ensure directories exist
+        # Ensure directories exist with proper error handling
         for dir_path in [
             self.raw_dir,
             self.processed_dir,
@@ -133,9 +201,47 @@ class DocumentProcessor:
                     f"Failed to create directory {dir_path}: {str(e)}"
                 )
 
+        # Index to track document metadata
+        self.document_index_path = self.processed_dir / "document_index.json"
+        self.document_index = self._load_document_index()
+
+        # Initialize embedding service
+        try:
+            self.embedding_service = embedding_service or EmbeddingService()
+        except Exception as e:
+            logger.error(f"Failed to initialize embedding service: {str(e)}")
+            raise DocumentProcessingError(
+                f"Embedding service initialization failed: {str(e)}"
+            )
+
         self.all_chunks = []
         self.deduplicated_chunks = []
 
+    def _load_document_index(self) -> Dict[str, Dict[str, Any]]:
+        """Load document index from disk or create if it doesn't exist."""
+        try:
+            if self.document_index_path.exists():
+                with open(self.document_index_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            return {}
+        except Exception as e:
+            logger.error(f"Error loading document index: {str(e)}")
+            return {}
+
+    def _save_document_index(self) -> bool:
+        """Save document index to disk."""
+        try:
+            # Ensure parent directory exists
+            self.document_index_path.parent.mkdir(parents=True, exist_ok=True)
+
+            with open(self.document_index_path, "w", encoding="utf-8") as f:
+                json.dump(self.document_index, f, indent=2)
+            return True
+        except Exception as e:
+            logger.error(f"Error saving document index: {str(e)}")
+            return False
+
+    @safe_path_operation
     def process_all_documents(self) -> List[Dict[str, Any]]:
         """Process all documents with comprehensive error handling."""
         logger.info(f"Processing all documents in {self.raw_dir}")
@@ -215,8 +321,95 @@ class DocumentProcessor:
             self.all_chunks = []
             self.deduplicated_chunks = []
 
-    def process_document(self, file_path: Path) -> Optional[Dict[str, Any]]:
+    @safe_path_operation
+    def process_file(self, file_path: Union[str, Path]) -> Dict[str, Any]:
+        """
+        Process a single file from any location.
+
+        Args:
+            file_path: Path to the file to process
+
+        Returns:
+            Dict: Document metadata
+        """
+        file_path = ensure_path(file_path)
+        if not file_path:
+            raise DocumentProcessingError("Invalid file path provided")
+
+        if not file_path.exists():
+            raise DocumentProcessingError(f"File not found: {file_path}")
+
+        if not file_path.is_file():
+            raise DocumentProcessingError(f"Path is not a file: {file_path}")
+
+        # Process the file directly
+        return self.process_document(file_path)
+
+    @safe_path_operation
+    def process_folder(
+        self, folder_path: Union[str, Path]
+    ) -> List[Dict[str, Any]]:
+        """
+        Process all files in a folder.
+
+        Args:
+            folder_path: Path to the folder containing files to process
+
+        Returns:
+            List[Dict]: List of document metadata
+        """
+        folder_path = ensure_path(folder_path)
+        if not folder_path:
+            raise DocumentProcessingError("Invalid folder path provided")
+
+        if not folder_path.exists():
+            raise DocumentProcessingError(f"Folder not found: {folder_path}")
+
+        if not folder_path.is_dir():
+            raise DocumentProcessingError(
+                f"Path is not a directory: {folder_path}"
+            )
+
+        results = []
+        failed_files = []
+
+        # Process each file in the folder
+        files = list(folder_path.glob("**/*"))
+
+        if not files:
+            logger.warning(f"No files found in {folder_path}")
+            return []
+
+        for file_path in tqdm(
+            files, desc=f"Processing files in {folder_path.name}"
+        ):
+            if not file_path.is_file():
+                continue
+
+            try:
+                metadata = self.process_document(file_path)
+                if metadata:
+                    results.append(metadata)
+            except Exception as e:
+                logger.error(f"Failed to process {file_path.name}: {str(e)}")
+                failed_files.append((file_path.name, str(e)))
+
+        # Report results
+        logger.info(f"Successfully processed: {len(results)} files")
+        if failed_files:
+            logger.warning(f"Failed to process: {len(failed_files)} files")
+
+        return results
+
+    @safe_path_operation
+    def process_document(
+        self, file_path: Union[str, Path]
+    ) -> Optional[Dict[str, Any]]:
         """Process a single document with error handling."""
+        file_path = ensure_path(file_path)
+        if not file_path:
+            raise DocumentProcessingError("Invalid file path provided")
+
         if not file_path.exists():
             raise DocumentProcessingError(f"File not found: {file_path}")
 
@@ -273,7 +466,15 @@ class DocumentProcessor:
                 "processed_path": str(processed_path),
                 "chunks_path": str(chunk_path),
                 "num_chunks": len(chunks),
+                "last_modified": file_path.stat().st_mtime,
+                "processed_date": os.path.getmtime(processed_path)
+                if processed_path.exists()
+                else None,
             }
+
+            # Update document index
+            self.document_index[doc_id] = metadata
+            self._save_document_index()
 
             logger.info(f"Processed {file_path.name}: {len(chunks)} chunks")
             return metadata
@@ -284,8 +485,171 @@ class DocumentProcessor:
                 f"Failed to process {file_path.name}: {str(e)}"
             )
 
-    def _extract_text(self, file_path: Path) -> Tuple[str, str]:
+    def delete_document(self, doc_id: str) -> bool:
+        """
+        Delete a document and its associated chunks from the system.
+
+        Args:
+            doc_id: Document ID to delete
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Check if document exists in the index
+            if doc_id not in self.document_index:
+                logger.warning(f"Document {doc_id} not found in index")
+                return False
+
+            # Get document metadata
+            metadata = self.document_index[doc_id]
+
+            # Delete processed text file
+            processed_path = ensure_path(metadata["processed_path"])
+            if processed_path and processed_path.exists():
+                processed_path.unlink()
+                logger.info(f"Deleted processed file: {processed_path}")
+
+            # Delete chunks file
+            chunks_path = ensure_path(metadata["chunks_path"])
+            if chunks_path and chunks_path.exists():
+                chunks_path.unlink()
+                logger.info(f"Deleted chunks file: {chunks_path}")
+
+            # Update deduplication files if they exist
+            dedup_path = self.dedup_dir / "deduplicated_chunks.jsonl"
+            if dedup_path.exists():
+                self._remove_document_from_deduplicated(doc_id)
+
+            # Remove from index
+            del self.document_index[doc_id]
+            self._save_document_index()
+
+            logger.info(f"Successfully deleted document: {doc_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to delete document {doc_id}: {str(e)}")
+            return False
+
+    @safe_path_operation
+    def update_document(self, file_path: Union[str, Path]) -> Dict[str, Any]:
+        """
+        Update an existing document. If the document doesn't exist, it will be added.
+
+        Args:
+            file_path: Path to the updated file
+
+        Returns:
+            Dict: Updated document metadata
+        """
+        file_path = ensure_path(file_path)
+        if not file_path:
+            raise DocumentProcessingError("Invalid file path provided")
+
+        if not file_path.exists():
+            raise DocumentProcessingError(f"File not found: {file_path}")
+
+        # Generate document ID to check if it exists
+        doc_id = self._generate_document_id(file_path)
+
+        # If document exists, delete it first
+        if doc_id in self.document_index:
+            logger.info(f"Document {doc_id} already exists, updating...")
+            self.delete_document(doc_id)
+
+        # Process the document
+        return self.process_document(file_path)
+
+    def list_documents(self) -> List[Dict[str, Any]]:
+        """
+        List all processed documents in the system.
+
+        Returns:
+            List[Dict]: List of document metadata
+        """
+        return list(self.document_index.values())
+
+    def get_document_info(self, doc_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get information about a specific document.
+
+        Args:
+            doc_id: Document ID
+
+        Returns:
+            Dict or None: Document metadata if found
+        """
+        return self.document_index.get(doc_id)
+
+    def _remove_document_from_deduplicated(self, doc_id: str) -> None:
+        """
+        Remove a document's chunks from the deduplicated file.
+
+        Args:
+            doc_id: Document ID to remove
+        """
+        dedup_path = self.dedup_dir / "deduplicated_chunks.jsonl"
+        if not dedup_path.exists():
+            return
+
+        try:
+            # Create a temporary file
+            temp_path = dedup_path.with_suffix(".tmp")
+
+            # Copy chunks that don't belong to the document
+            filtered_chunks = []
+            with open(dedup_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    chunk_data = json.loads(line)
+                    if chunk_data.get("doc_id") != doc_id:
+                        # Check if this chunk was merged with chunks from the document
+                        if (
+                            "metadata" in chunk_data
+                            and "merged_from_chunks" in chunk_data["metadata"]
+                        ):
+                            merged_chunks = chunk_data["metadata"][
+                                "merged_from_chunks"
+                            ]
+                            # Remove references to chunks from the document
+                            filtered_chunks_ids = [
+                                c
+                                for c in merged_chunks
+                                if not c.startswith(f"{doc_id}_")
+                            ]
+                            if filtered_chunks_ids:
+                                # Update the merged chunk data
+                                chunk_data["metadata"][
+                                    "merged_from_chunks"
+                                ] = filtered_chunks_ids
+                                filtered_chunks.append(chunk_data)
+                        else:
+                            # Not a merged chunk, keep it
+                            filtered_chunks.append(chunk_data)
+
+            # Write the filtered chunks to the temporary file
+            with open(temp_path, "w", encoding="utf-8") as f:
+                for chunk_data in filtered_chunks:
+                    f.write(json.dumps(chunk_data) + "\n")
+
+            # Replace the original file
+            temp_path.replace(dedup_path)
+
+            logger.info(f"Removed document {doc_id} from deduplicated chunks")
+
+        except Exception as e:
+            logger.error(
+                f"Error removing document from deduplicated chunks: {str(e)}"
+            )
+
+    def _extract_text(self, file_path: Union[str, Path]) -> Tuple[str, str]:
         """Extract text with comprehensive error handling."""
+        file_path = ensure_path(file_path)
+        if not file_path:
+            raise DocumentProcessingError(
+                "Invalid file path for text extraction"
+            )
+
         file_extension = file_path.suffix.lower()
 
         try:
@@ -381,8 +745,16 @@ class DocumentProcessor:
             logger.error(f"Chunking error: {str(e)}")
             raise DocumentProcessingError(f"Failed to create chunks: {str(e)}")
 
-    def _save_chunks(self, chunks: List[Chunk], output_path: Path) -> None:
+    def _save_chunks(
+        self, chunks: List[Chunk], output_path: Union[str, Path]
+    ) -> None:
         """Save chunks with error handling."""
+        output_path = ensure_path(output_path)
+        if not output_path:
+            raise DocumentProcessingError(
+                "Invalid output path for saving chunks"
+            )
+
         try:
             output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -397,12 +769,18 @@ class DocumentProcessor:
             temp_path.replace(output_path)
 
         except Exception as e:
-            if temp_path.exists():
+            if temp_path and temp_path.exists():
                 temp_path.unlink()
             raise DocumentProcessingError(f"Failed to save chunks: {str(e)}")
 
-    def _save_deduplicated_chunks(self, output_path: Path) -> None:
+    def _save_deduplicated_chunks(self, output_path: Union[str, Path]) -> None:
         """Save deduplicated chunks with error handling."""
+        output_path = ensure_path(output_path)
+        if not output_path:
+            raise DocumentProcessingError(
+                "Invalid output path for saving deduplicated chunks"
+            )
+
         try:
             output_path.parent.mkdir(parents=True, exist_ok=True)
             temp_path = output_path.with_suffix(".tmp")
@@ -425,14 +803,20 @@ class DocumentProcessor:
             temp_path.replace(output_path)
 
         except Exception as e:
-            if temp_path.exists():
+            if temp_path and temp_path.exists():
                 temp_path.unlink()
             raise DocumentProcessingError(
                 f"Failed to save deduplicated chunks: {str(e)}"
             )
 
-    def _generate_document_id(self, file_path: Path) -> str:
+    def _generate_document_id(self, file_path: Union[str, Path]) -> str:
         """Generate unique document ID."""
+        file_path = ensure_path(file_path)
+        if not file_path:
+            raise DocumentProcessingError(
+                "Invalid file path for generating document ID"
+            )
+
         try:
             file_stat = file_path.stat()
             unique_string = f"{file_path}_{file_stat.st_mtime}"
@@ -501,7 +885,7 @@ class DocumentProcessor:
             range(0, len(self.all_chunks), batch_size),
             desc="Generating embeddings",
         ):
-            batch = self.all_chunks[i : i + batch_size]
+            batch = self.all_chunks[i: i + batch_size]
             texts = [chunk.text for chunk in batch]
 
             try:
