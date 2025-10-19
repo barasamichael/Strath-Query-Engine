@@ -99,7 +99,7 @@ class DocumentProcessor:
         chunk_dir: Path = None,
         dedup_dir: Path = None,
         embedding_service: Optional[EmbeddingService] = None,
-        enable_deduplication: bool = True,
+        enable_deduplication: bool = False,
         similarity_threshold: float = 0.92,
     ):
         self.raw_dir = raw_dir or ROOT_DIR / "data" / "raw"
