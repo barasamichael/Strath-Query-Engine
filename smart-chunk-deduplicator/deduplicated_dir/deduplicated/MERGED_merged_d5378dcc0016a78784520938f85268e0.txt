@@ -1,9 +1,0 @@
-
-
---- MERGED CHUNK (from 2 sources) ---
-
-- Work as Certified Data Science Professionals: Gain practical expertise to confidently pursue data science roles and meet industry demands. #### Target Audience - Graduates of foundational data science courses (such as CDAV) who are ready to progress to an intermediate level. - Professionals with a basic understanding of data science aiming to advance their skills and take on more complex data projects.
-
---- Additional Information ---
-#### Target Audience The CDAV program is ideal for: - Beginners looking to start a career in data science or analytics. - Professionals seeking foundational skills in data analytics to add value in their current roles. - Individuals aiming to improve their data visualization and storytelling abilities for enhanced decision-making in their fields.
-

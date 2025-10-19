@@ -1,6 +1,0 @@
-
-
---- MERGED CHUNK (from 2 sources) ---
-
-data. - **Network Security** – Students examine the dimensions of providing security in terms networks architecture, network infrastructure and network traffic. - **Software Security** – Students learn the various facets of enhancing security in terms of Information Systems, operating systems and applications, both software and hardware. ### Entry Requirements 1.
-

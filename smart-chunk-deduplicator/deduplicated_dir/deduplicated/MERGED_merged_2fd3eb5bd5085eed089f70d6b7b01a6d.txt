@@ -1,9 +1,0 @@
-
-
---- MERGED CHUNK (from 2 sources) ---
-
-- Fields include: Full Name, Department, Phone Number, Email Address, Name of the VIP, VIP's Biography, Origin organization, Position in the Organization, Group/delegation details, University inviter details, Visit date and time, Purpose of the visit, Proposed format for visit, Vice-Chancellor participation details, University host details ### Email Dissemination Request Form For requesting mass email communications to the university community.
-
---- Additional Information ---
-- Fields include: Your Name, Email Address, CC Your Manager, Phone Number, Department, Project title and purpose, Project type (multiple options), Brief description of the event, Printing intention, File uploads, Target audience, Medium of communication ### VIP Notification Form For notifying the university about VIP visitors.
-

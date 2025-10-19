@@ -1,9 +1,0 @@
-
-
---- MERGED CHUNK (from 2 sources) ---
-
-Prof. Shibwabo has been teaching and training: Design Thinking, Challenge Driven Education, Programming, Software Development, Secure programming, Embedded Systems and IoT, Multimedia Applications, Server Administration, Data Structures and Algorithms, Databases, Service Oriented Architecture, Mobile Applications Development, Knowledge Based Systems, Research Methodology, Thesis & Dissertation Supervision among other courses/programmes.
-
---- Additional Information ---
-Prof. Bernard Shibwabo previously served in various companies, including Swift Global (K) Ltd., Virtual Solutions, and Strathmore Research and Consultancy Center. He has been in continuous collaboration with major industry players to provide solutions to real societal challenges, particularly through the application of Design Thinking.
-

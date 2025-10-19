@@ -1,9 +1,0 @@
-
-
---- MERGED CHUNK (from 2 sources) ---
-
-Julius Kilonzi Charles, Peter Musau Moses, Jackson Mwangi Mbuthia; "Metaheuristic-based Adaptive Hybrid Algorithm for solving Constrained Optimization Problems", European Journal of Advances in Engineering and Technology, 2020, 6(7): 1-4 12. Julius Kilonzi Charles, Peter Musau Moses, Jackson Mwangi Mbuthia; "An Adaptive Hybrid Meta-heuristic Approach for Transmission Constrained Multi-objective GEP", 2020 IEEE PES/IAS PowerAfrica. 13.
-
---- Additional Information ---
-Julius Kilonzi Charles, Peter Musau Moses and Jackson Mwangi Mbuthia; "Security Constrained MODGTEP using Adaptive Hybrid Meta-heuristic Approach", 2020 IEEE PES/IAS PowerAfrica. 14. Julius Kilonzi Charles, Peter Musau Moses, Jackson Mwangi Mbuthia, Newtone Orondoh Munyoro; "Improved Expectations-Augmented Model for Short & Medium Term Demand Forecasting in Kenya", 2020 IEEE PES/IAS PowerAfrica.
-

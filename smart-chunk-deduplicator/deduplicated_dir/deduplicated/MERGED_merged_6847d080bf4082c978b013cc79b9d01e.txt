@@ -1,9 +1,0 @@
-
-
---- MERGED CHUNK (from 2 sources) ---
-
-## AMS Modules and Features Links to the various modules are under the various menus as follows: - AMS Main Module (admissions, planning, exams, finance): [AMS Main System](https://ams.strathmore.edu/ga/servlet/es/unav/ga/comun/seguridad/Identificacion.html) - AMS Lecturers' Module: [Academic -> AMS Lecturers' Module](https://ams.strathmore.edu/profesor/servlet/es/unav/ga/comun/seguridadProfesor/Identificacion.html) - AMS Students' Module: [Students -> AMS Students'
-
---- Additional Information ---
-Module](https://su-sso.strathmore.edu/susams) - AMS Mentoring Modules: [Admin -> Student Mentoring Module](https://ams.strathmore.edu/asesor/servlet/identificacion) Users' login credentials are tied to their Strathmore domain credentials. ### AMS Modules and Features AMS is functionally divided into modules which loosely fit the various academic functions within the university.
-
