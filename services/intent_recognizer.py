@@ -1,10 +1,10 @@
 import re
 import logging
 from enum import Enum
-from typing import Dict
 from typing import Any
+from typing import Dict
+from typing import Optional
 
-# Initialize logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("intent_recognizer")
 
@@ -18,7 +18,8 @@ class IntentType(str, Enum):
     CLARIFICATION = "clarification"
     FEEDBACK = "feedback"
     GENERAL_CHAT = "general_chat"
-    TIME_SENSITIVE_QUERY = "time_sensitive_query"  # New intent type
+    TIME_SENSITIVE_QUERY = "time_sensitive_query"
+    CONTEXTUAL_REFERENCE = "contextual_reference"
 
 
 class TopicCategory(str, Enum):
@@ -30,13 +31,12 @@ class TopicCategory(str, Enum):
     STUDENT_LIFE = "student_life"
     EVENTS = "events"
     GENERAL = "general"
-    SCHEDULE = "schedule"  # New topic category
+    SCHEDULE = "schedule"
     OTHER = "other"
 
 
 class IntentRecognizer:
     def __init__(self):
-        # Initialize keyword patterns for intent recognition
         self.intent_patterns = {
             IntentType.FACTUAL_QUERY: [
                 r"what is",
@@ -113,9 +113,17 @@ class IntentRecognizer:
                 r"(today|tomorrow|current) class(es)?",
                 r"class(es)? (for|on) today",
             ],
+            IntentType.CONTEXTUAL_REFERENCE: [
+                r"(his|her|their) (predecessor|successor)",
+                r"what about (monday|tuesday|wednesday|thursday|friday)",
+                r"what about (it|that|this|them|those)",
+                r"(that|this) (course|class|program)",
+                r"(same|similar) (thing|process|requirement)",
+                r"for (it|that|this|them)",
+                r"about (it|that|this|them)",
+            ],
         }
 
-        # Topic keywords for basic categorization
         self.topic_keywords = {
             TopicCategory.ACADEMICS: [
                 "course",
@@ -277,15 +285,23 @@ class IntentRecognizer:
                 re.compile(pattern, re.IGNORECASE) for pattern in patterns
             ]
 
-    def recognize_intent(self, query: str) -> Dict[str, Any]:
+    def recognize_intent(
+        self, query: str, conversation_context: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         """
-        Recognize the intent of a user query and categorize it.
-        Returns a dictionary with intent type, confidence, and topic.
+        Enhanced intent recognition that considers conversation context.
+
+        Args:
+            query: User query
+            conversation_context: Optional context from memory processor
+
+        Returns:
+            Intent information including context-aware adjustments
         """
         # Clean query
         query = query.strip().lower()
 
-        # Check for clarification intent (follow-up to previous response)
+        # Check for clarification intent first
         clarification_indicators = [
             "you mentioned",
             "you said",
@@ -303,25 +319,37 @@ class IntentRecognizer:
                     "intent_type": IntentType.CLARIFICATION,
                     "confidence": 0.8,
                     "topic": self._determine_topic(query),
+                    "requires_context": True,
                 }
 
-        # Check for time-sensitive schedule queries first
-        schedule_keywords = [
-            "class today", "remaining classes", "classes left",
-            "schedule today", "timetable", "upcoming class",
-            "next class", "what's next", "what is next",
-            "today's classes", "today's schedule", "class now"
-        ]
+        # Check if conversation context indicates this should be contextual
+        if (
+            False
+            and conversation_context
+            and conversation_context.get("has_context")
+        ):
+            # If memory system detected references, boost contextual intent
+            if conversation_context.get("context_is_relevant"):
+                contextual_score = 0.0
+                for intent, patterns in self.compiled_intent_patterns.items():
+                    if intent == IntentType.CONTEXTUAL_REFERENCE:
+                        for pattern in patterns:
+                            if pattern.search(query):
+                                contextual_score = 0.9
+                                break
 
-        for keyword in schedule_keywords:
-            if keyword in query.lower():
-                return {
-                    "intent_type": IntentType.TIME_SENSITIVE_QUERY,
-                    "confidence": 0.9,
-                    "topic": TopicCategory.SCHEDULE,
-                }
+                if contextual_score > 0:
+                    return {
+                        "intent_type": IntentType.CONTEXTUAL_REFERENCE,
+                        "confidence": contextual_score,
+                        "topic": self._determine_topic(query),
+                        "requires_context": True,
+                        "memory_confidence": conversation_context.get(
+                            "relevance_score", 0
+                        ),
+                    }
 
-        # Check for other intent types
+        # Standard intent recognition
         intent_scores = {}
         for intent, patterns in self.compiled_intent_patterns.items():
             score = 0
@@ -334,29 +362,49 @@ class IntentRecognizer:
 
         # Determine most likely intent
         if not intent_scores:
-            # Default to factual query if no patterns match
             intent_type = IntentType.FACTUAL_QUERY
             confidence = 0.5
         else:
             intent_type = max(intent_scores, key=intent_scores.get)
             confidence = intent_scores[intent_type]
 
-        # Determine if query is off-topic
+        # Check if query is off-topic
         is_off_topic, topic = self._check_if_off_topic(query)
 
         if is_off_topic:
             intent_type = IntentType.OFF_TOPIC
             confidence = 0.7
 
-        return {
+        # Determine if this intent typically requires context
+        requires_context = intent_type in [
+            IntentType.CLARIFICATION,
+            IntentType.CONTEXTUAL_REFERENCE,
+            IntentType.EXPLANATION_QUERY,
+        ]
+
+        result = {
             "intent_type": intent_type,
             "confidence": confidence,
             "topic": topic,
+            "requires_context": requires_context,
         }
+
+        # Add memory-related metadata if available
+        if False and conversation_context:
+            result["memory_available"] = conversation_context.get(
+                "has_context", False
+            )
+            result["memory_relevance"] = conversation_context.get(
+                "relevance_score", 0
+            )
+            if conversation_context.get("needs_clarification"):
+                result["intent_type"] = IntentType.CLARIFICATION
+                result["clarification_needed"] = True
+
+        return result
 
     def _determine_topic(self, query: str) -> TopicCategory:
         """Determine the topic category of a query."""
-        # Count keyword matches for each topic
         topic_counts = {}
         query_words = set(re.findall(r"\b\w+\b", query.lower()))
 
@@ -369,51 +417,111 @@ class IntentRecognizer:
             if matches > 0:
                 topic_counts[topic] = matches
 
-        # Return the topic with the most matches, or GENERAL if no matches
         if not topic_counts:
             return TopicCategory.GENERAL
 
         return max(topic_counts, key=topic_counts.get)
 
     def _check_if_off_topic(self, query: str) -> tuple[bool, TopicCategory]:
-        """Check if a query is off-topic (not related to Strathmore University)."""
-        # Assume queries are ON-topic by default
+        """Check if a query is off-topic."""
         is_off_topic = False
-
-        # Determine topic
         topic = self._determine_topic(query)
 
-        # List of terms that are definitely off-topic
         off_topic_indicators = [
-            "NASA", "SpaceX", "World Cup", "Olympics",
-            "United Nations", "President of USA", "European Union",
-            "Marvel", "Disney", "Hollywood", "Bitcoin", "NFT",
-            "PlayStation", "Xbox", "Nintendo", "Apple", "Google",
-            "Tesla", "Amazon", "Facebook"
+            "NASA",
+            "SpaceX",
+            "World Cup",
+            "Olympics",
+            "United Nations",
+            "President of USA",
+            "European Union",
+            "Marvel",
+            "Disney",
+            "Hollywood",
+            "Bitcoin",
+            "NFT",
+            "PlayStation",
+            "Xbox",
+            "Nintendo",
+            "Apple",
+            "Google",
+            "Tesla",
+            "Amazon",
+            "Facebook",
         ]
 
-        # Education related terms that indicate on-topic nature
         education_terms = [
-            "student", "university", "college", "course", "professor",
-            "lecturer", "class", "degree", "education", "academic",
-            "school", "faculty", "study", "campus", "learning",
-            "dean", "curriculum", "semester", "exam", "library",
-            "assignment", "graduation", "admission", "department"
+            "student",
+            "university",
+            "college",
+            "course",
+            "professor",
+            "lecturer",
+            "class",
+            "degree",
+            "education",
+            "academic",
+            "school",
+            "faculty",
+            "study",
+            "campus",
+            "learning",
+            "dean",
+            "curriculum",
+            "semester",
+            "exam",
+            "library",
+            "assignment",
+            "graduation",
+            "admission",
+            "department",
         ]
 
         query_lower = query.lower()
 
-        # Check for explicit off-topic indicators
         has_off_topic_terms = any(
-            term.lower() in query_lower for term in off_topic_indicators)
-
-        # Check for education-related terms
+            term.lower() in query_lower for term in off_topic_indicators
+        )
         has_education_terms = any(
-            term in query_lower for term in education_terms)
+            term in query_lower for term in education_terms
+        )
 
-        # If query has explicit off-topic terms AND doesn't have education terms,
-        # mark as off-topic
         if has_off_topic_terms and not has_education_terms:
             is_off_topic = True
 
         return is_off_topic, topic
+
+    def should_use_conversation_context(
+        self, intent_info: Dict[str, Any]
+    ) -> bool:
+        """
+        Determine if conversation context should be used based on intent.
+
+        Args:
+            intent_info: Result from recognize_intent()
+
+        Returns:
+            bool: Whether to use conversation context
+        """
+        # Always use context for these intents
+        contextual_intents = [
+            IntentType.CLARIFICATION,
+            IntentType.CONTEXTUAL_REFERENCE,
+        ]
+
+        if intent_info["intent_type"] in contextual_intents:
+            return True
+
+        # Use context if memory system indicated it's available and relevant
+        if (
+            False
+            and intent_info.get("memory_available")
+            and intent_info.get("memory_relevance", 0) > 0.4
+        ):
+            return True
+
+        # Use context if intent requires it
+        if intent_info.get("requires_context", False):
+            return True
+
+        return False

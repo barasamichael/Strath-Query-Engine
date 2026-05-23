@@ -1,316 +1,805 @@
 import os
 import logging
-from typing import Any
-from typing import Dict
-from typing import List
+from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime
 import pytz
 
-import openai
 from openai import OpenAI
+from services.embeddings import EmbeddingService, IntentType
+from services.vector_db import VectorDBService
+from services.tavily_service import TavilyService
 
-from config.settings import settings
-from services.intent_recognizer import IntentType
-
-# Initialize logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("response_generator")
 
 # Initialize OpenAI client
-openai.api_key = os.getenv("OPENAI_API_KEY")
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
 class ResponseGenerator:
-    def __init__(self):
-        self.model = settings.llm.model
-        self.temperature = settings.llm.temperature
-        self.max_tokens = settings.llm.max_tokens
+    """
+    Comprehensive response generator with aggressive real-time integration.
+    Direct and thorough - provides complete answers without fluff.
+    """
 
-    def get_current_kenya_time(self):
-        """Get the current date and time in Kenya (UTC+3)"""
-        kenya_tz = pytz.timezone('Africa/Nairobi')
-        current_time = datetime.now(kenya_tz)
+    def __init__(
+        self,
+        vector_db_service: Optional[VectorDBService] = None,
+        embedding_service: Optional[EmbeddingService] = None,
+        tavily_service: Optional[TavilyService] = None,
+    ):
+        self.model = "gpt-4o-mini"
+        self.temperature = 0.1
+        self.max_tokens = 4096
 
-        # Format: "Monday, October 21, 2025 14:30"
-        formatted_time = current_time.strftime("%A, %B %d, %Y %H:%M")
+        # Initialize services
+        self.vector_db = vector_db_service or VectorDBService()
+        self.embedding_service = embedding_service or EmbeddingService()
+        self.tavily_service = tavily_service
 
-        # Also create a simpler format for time comparison
-        time_only = current_time.strftime("%H:%M")
+        # Initialize intent recognition
+        if hasattr(self.embedding_service, "initialize_intent_recognition"):
+            self.embedding_service.initialize_intent_recognition()
 
-        return formatted_time, time_only
+        # Enhanced real-time indicators - more comprehensive
+        self.real_time_triggers = [
+            "current",
+            "latest",
+            "recent",
+            "today",
+            "now",
+            "this year",
+            "2024",
+            "2025",
+            "deadline",
+            "announcement",
+            "news",
+            "update",
+            "fee",
+            "tuition",
+            "cost",
+            "price",
+            "schedule",
+            "timetable",
+            "admission",
+            "application",
+            "registration",
+            "enrollment",
+            "when is",
+            "what time",
+            "how much",
+            "status",
+            "available",
+        ]
+
+        # Expanded time-sensitive topics that always need real-time data
+        self.always_real_time_topics = [
+            "fees",
+            "tuition",
+            "admission",
+            "deadlines",
+            "schedules",
+            "announcements",
+            "events",
+            "registration",
+            "applications",
+            "results",
+            "grades",
+            "timetables",
+            "payments",
+            "scholarships",
+            "bursaries",
+            "accommodation",
+            "orientation",
+        ]
+
+        logger.info(
+            f"Enhanced ResponseGenerator initialized - Comprehensive mode: ACTIVE, "
+            f"Real-time mode: {'ACTIVE' if self.tavily_service else 'DISABLED'}"
+        )
+
+    def get_current_kenya_time(self) -> Tuple[str, str]:
+        """Get current time in Kenyan timezone."""
+        try:
+            import pytz
+            from datetime import datetime
+
+            kenya_tz = pytz.timezone("Africa/Nairobi")
+            current_time = datetime.now(kenya_tz)
+
+            formatted_time = current_time.strftime("%Y-%m-%d %H:%M:%S EAT")
+            iso_time = current_time.isoformat()
+
+            return formatted_time, iso_time
+
+        except Exception as e:
+            logger.error(f"Error getting Kenya time: {e}")
+            # Fallback to UTC
+            from datetime import datetime
+
+            utc_time = datetime.utcnow()
+            formatted_time = utc_time.strftime("%Y-%m-%d %H:%M:%S UTC")
+            iso_time = utc_time.isoformat()
+            return formatted_time, iso_time
 
     def generate_response(
         self,
         query: str,
-        retrieved_context: List[Dict[str, Any]],
-        intent_info: Dict[str, Any],
+        context_info: Optional[Dict[str, Any]] = None,
+        use_real_time: bool = True,
     ) -> Dict[str, Any]:
         """
-        Generate a response to the user query based on the retrieved context and detected intent.
+        Generate comprehensive, direct response with aggressive real-time integration.
         """
-        # Get current time in Kenya
-        current_time_full, current_time = self.get_current_kenya_time()
+        try:
+            start_time = datetime.now()
 
-        # Prepare system instruction based on intent
-        system_instruction = self._get_system_instruction(
-            intent_info["intent_type"]
+            # Step 1: Intent recognition (fast)
+            intent_type, intent_confidence = self._quick_intent_recognition(
+                query
+            )
+
+            # Step 2: Determine if we need real-time data AGGRESSIVELY
+            needs_real_time = False and self._aggressive_real_time_check(
+                query, intent_type
+            )
+
+            # Step 3: Parallel data retrieval
+            retrieved_context = []
+            real_time_data = None
+
+            if needs_real_time and self.tavily_service and use_real_time:
+                # AGGRESSIVE real-time first
+                real_time_data = self._get_real_time_data(query, intent_type)
+
+            # Always get comprehensive vector database context
+            context_limit = 10 if real_time_data else 15
+            vector_context = self._get_vector_context(
+                query, intent_type, context_limit
+            )
+            retrieved_context.extend(vector_context)
+
+            # Step 4: Generate comprehensive response
+            response_content = self._generate_direct_response(
+                query=query,
+                intent_type=intent_type,
+                vector_context=retrieved_context,
+                real_time_data=real_time_data,
+                context_info=context_info,
+            )
+
+            # Step 5: Calculate metrics
+            processing_time = (datetime.now() - start_time).total_seconds()
+            print(processing_time)
+
+            result = {
+                "response": response_content["content"],
+                "intent_type": intent_type.value,
+                "intent_confidence": intent_confidence,
+                "context_sources": len(retrieved_context),
+                "real_time_used": real_time_data is not None,
+                "real_time_results": (
+                    len(real_time_data.get("results", []))
+                    if real_time_data
+                    else 0
+                ),
+                "processing_time": processing_time,
+                "token_usage": response_content.get("token_usage", {}),
+                "approach": (
+                    "comprehensive_with_real_time"
+                    if real_time_data
+                    else "comprehensive_vector_only"
+                ),
+                "timestamp": datetime.now(
+                    pytz.timezone("Africa/Nairobi")
+                ).strftime("%Y-%m-%d %H:%M:%S EAT"),
+            }
+
+            if real_time_data:
+                result["real_time_sources"] = [
+                    r.get("url", "") for r in real_time_data.get("results", [])
+                ]
+
+            logger.info(
+                f"Comprehensive response generated in {processing_time:.2f}s - Real-time: {'YES' if real_time_data else 'NO'}"
+            )
+            return result
+
+        except Exception as e:
+            logger.error(f"Error generating response: {e}")
+            return {
+                "response": f"I encountered an error processing your question about {query}. Please try rephrasing or ask about something else.",
+                "error": str(e),
+                "intent_type": "error",
+                "real_time_used": False,
+            }
+
+    def _quick_intent_recognition(self, query: str) -> tuple[IntentType, float]:
+        """Fast intent recognition - pattern matching first, embedding fallback."""
+        try:
+            # Quick pattern-based recognition
+            query_lower = query.lower()
+
+            # Schedule queries
+            if any(
+                word in query_lower
+                for word in [
+                    "class",
+                    "schedule",
+                    "timetable",
+                    "when",
+                    "what time",
+                ]
+            ):
+                if any(
+                    word in query_lower
+                    for word in [
+                        "bics",
+                        "ics",
+                        "monday",
+                        "tuesday",
+                        "wednesday",
+                        "thursday",
+                        "friday",
+                    ]
+                ):
+                    return IntentType.SCHEDULE_QUERY, 0.9
+
+            # Fee/cost queries
+            if any(
+                word in query_lower
+                for word in [
+                    "fee",
+                    "cost",
+                    "tuition",
+                    "pay",
+                    "price",
+                    "scholarship",
+                ]
+            ):
+                return IntentType.FEES_QUERY, 0.9
+
+            # Admission queries
+            if any(
+                word in query_lower
+                for word in [
+                    "admission",
+                    "apply",
+                    "application",
+                    "entry",
+                    "requirement",
+                ]
+            ):
+                return IntentType.ADMISSION_QUERY, 0.9
+
+            # Procedural queries
+            if any(
+                phrase in query_lower
+                for phrase in [
+                    "how do i",
+                    "how to",
+                    "process",
+                    "procedure",
+                    "steps",
+                ]
+            ):
+                return IntentType.PROCEDURAL_QUERY, 0.8
+
+            # Factual queries (default)
+            return IntentType.FACTUAL_QUERY, 0.7
+
+        except Exception:
+            return IntentType.FACTUAL_QUERY, 0.5
+
+    def _aggressive_real_time_check(
+        self, query: str, intent_type: IntentType
+    ) -> bool:
+        """Aggressively determine if query needs real-time data."""
+        query_lower = query.lower()
+
+        # Always use real-time for certain intents
+        if intent_type in [
+            IntentType.FEES_QUERY,
+            IntentType.ADMISSION_QUERY,
+            IntentType.SCHEDULE_QUERY,
+        ]:
+            return True
+
+        # Always use real-time for certain topics
+        if any(topic in query_lower for topic in self.always_real_time_topics):
+            return True
+
+        # Check for explicit time indicators
+        if any(trigger in query_lower for trigger in self.real_time_triggers):
+            return True
+
+        # Check for current year or time references
+        current_year = str(datetime.now().year)
+        if (
+            current_year in query
+            or "this semester" in query_lower
+            or "current semester" in query_lower
+        ):
+            return True
+
+        return False
+
+    def _get_real_time_data(
+        self, query: str, intent_type: IntentType
+    ) -> Optional[Dict]:
+        """Get real-time data from Tavily with enhanced query strategies."""
+        if not self.tavily_service:
+            return None
+
+        try:
+            # Enhance query based on intent
+            enhanced_query = self._enhance_query_for_real_time(
+                query, intent_type
+            )
+
+            # Use multiple search strategies
+            searches = [enhanced_query]
+
+            # Add specific searches based on intent
+            if intent_type == IntentType.FEES_QUERY:
+                searches.append(
+                    f"Strathmore University tuition fees {datetime.now().year}"
+                )
+                searches.append("Strathmore University fee structure payment")
+
+            elif intent_type == IntentType.ADMISSION_QUERY:
+                searches.append(
+                    f"Strathmore University admission {datetime.now().year}"
+                )
+                searches.append(
+                    "Strathmore University application requirements"
+                )
+
+            elif intent_type == IntentType.SCHEDULE_QUERY:
+                searches.append(
+                    "Strathmore University academic calendar timetable"
+                )
+
+            # Execute searches and combine results
+            all_results = []
+            for search_query in searches[
+                :2
+            ]:  # Limit to 2 searches for cost control
+                try:
+                    result = self.tavily_service.search(
+                        query=search_query,
+                        max_results=4,  # Increased for more comprehensive data
+                        search_depth="basic",
+                        include_answer=True,
+                    )
+                    if result.get("results"):
+                        all_results.extend(result["results"])
+                except Exception as e:
+                    logger.warning(
+                        f"Tavily search failed for '{search_query}': {e}"
+                    )
+                    continue
+
+            if all_results:
+                # Deduplicate and rank results
+                unique_results = {}
+                for result in all_results:
+                    url = result.get("url", "")
+                    if url not in unique_results:
+                        unique_results[url] = result
+
+                # Sort by relevance score
+                sorted_results = sorted(
+                    unique_results.values(),
+                    key=lambda x: x.get("relevance_score", 0),
+                    reverse=True,
+                )
+
+                return {
+                    "results": sorted_results[:5],  # Increased to top 5 results
+                    "query": enhanced_query,
+                    "search_count": len(searches),
+                }
+
+        except Exception as e:
+            logger.error(f"Real-time data retrieval failed: {e}")
+
+        return None
+
+    def _enhance_query_for_real_time(
+        self, query: str, intent_type: IntentType
+    ) -> str:
+        """Enhance query for better real-time search results."""
+        query_lower = query.lower()
+
+        # Add Strathmore context if missing
+        if "strathmore" not in query_lower:
+            query = f"Strathmore University {query}"
+
+        # Add current year for relevance
+        current_year = str(datetime.now().year)
+        if (
+            current_year not in query
+            and str(datetime.now().year - 1) not in query
+        ):
+            query = f"{query} {current_year}"
+
+        # Add intent-specific terms
+        intent_enhancements = {
+            IntentType.FEES_QUERY: "tuition fees cost payment",
+            IntentType.ADMISSION_QUERY: "admission requirements application",
+            IntentType.SCHEDULE_QUERY: "timetable schedule academic calendar",
+            IntentType.PROCEDURAL_QUERY: "procedure process steps how to",
+            IntentType.FACTUAL_QUERY: "information details",
+        }
+
+        if intent_type in intent_enhancements:
+            enhancement = intent_enhancements[intent_type]
+            if not any(term in query_lower for term in enhancement.split()):
+                query = f"{query} {enhancement}"
+
+        return query
+
+    def _get_vector_context(
+        self, query: str, intent_type: IntentType, limit: int
+    ) -> List[Dict]:
+        """Get context from vector database with intent-based optimization."""
+        try:
+            # Adjust search strategy based on intent
+            search_params = {
+                "query": query,
+                "top_k": limit,
+                "use_hybrid": True,
+                "include_real_time": True,
+            }
+
+            # Intent-specific adjustments
+            if intent_type == IntentType.SCHEDULE_QUERY:
+                search_params["filter_metadata"] = {"doc_type": "schedule"}
+
+            return self.vector_db.search(**search_params)
+
+        except Exception as e:
+            logger.error(f"Vector context retrieval failed: {e}")
+            return []
+
+    def _generate_direct_response(
+        self,
+        query: str,
+        intent_type: IntentType,
+        vector_context: List[Dict],
+        real_time_data: Optional[Dict],
+        context_info: Optional[Dict] = None,
+    ) -> Dict[str, Any]:
+        """Generate comprehensive, direct response without fluff."""
+
+        # Enhanced system instruction - COMPREHENSIVE BUT DIRECT
+        system_instruction = """You are a comprehensive, expert assistant for Strathmore University students, staff, and prospective students.
+
+RESPONSE PHILOSOPHY:
+- Provide complete, thorough answers that anticipate follow-up questions
+- Be direct and get straight to the point - no fluff or introductory phrases
+- Give users everything they need to know in one response
+- Structure information logically from most important to supporting details
+- Include specific details, procedures, requirements, deadlines, and contact information when relevant
+- When you have current/real-time information, clearly indicate this and prioritize it
+
+COMPREHENSIVE COVERAGE:
+- Answer the main question fully
+- Include related important information the user likely needs
+- Provide step-by-step procedures when applicable
+- Include relevant deadlines, costs, requirements, or prerequisites
+- Mention contact information, office locations, or next steps when helpful
+- Add context that helps users understand the bigger picture
+- Include alternative options or related services when relevant
+
+INFORMATION HIERARCHY:
+1. Direct answer to the main question (with current data if available)
+2. Essential details (costs, deadlines, requirements, procedures)
+3. Step-by-step processes if applicable
+4. Contact information and locations
+5. Related information and alternatives
+6. Important notes, warnings, or exceptions
+
+FORMATTING:
+- Use clear section breaks for different aspects of information
+- Use bullet points or numbered lists for procedures and requirements
+- Bold important information like deadlines, costs, and contact details
+- Organize complex information in logical sections
+
+Be thorough, informative, and complete while maintaining directness and clarity."""
+
+        # Enhanced context formatting with better organization
+        context_parts = []
+
+        # Real-time information first (clearly marked and prioritized)
+        if real_time_data and real_time_data.get("results"):
+            context_parts.append("=== CURRENT/LATEST INFORMATION ===")
+            for i, result in enumerate(real_time_data["results"][:4], 1):
+                title = result.get("title", "No title")
+                content = result.get("content", "No content")[
+                    :600
+                ]  # Increased content length
+                url = result.get("url", "No URL")
+                published = result.get("published_date", "")
+                context_parts.append(f"CURRENT SOURCE {i}: {title}")
+                if published:
+                    context_parts.append(f"Published: {published}")
+                context_parts.append(f"Content: {content}")
+                context_parts.append(f"URL: {url}")
+                context_parts.append("")
+
+        # Vector database context (organized by relevance)
+        if vector_context:
+            context_parts.append(
+                "=== UNIVERSITY DOCUMENTATION & KNOWLEDGE BASE ==="
+            )
+            for i, ctx in enumerate(
+                vector_context[:12], 1
+            ):  # Increased context
+                score = ctx.get("score", 0)
+                text = ctx.get("text", "")[:500]  # Increased text length
+                source = ctx.get("source", "Unknown source")
+                doc_type = ctx.get("metadata", {}).get("doc_type", "document")
+
+                context_parts.append(
+                    f"SOURCE {i} (relevance: {score:.2f}, type: {doc_type})"
+                )
+                context_parts.append(f"Source: {source}")
+                context_parts.append(f"Content: {text}")
+                context_parts.append("")
+
+        context_text = (
+            "\n".join(context_parts)
+            if context_parts
+            else "Limited information available - provide general guidance."
         )
 
-        # Format retrieved context
-        context_text = self._format_context(retrieved_context)
-
-        # Prepare response guidelines based on intent
-        response_guidelines = self._get_response_guidelines(
-            intent_info["intent_type"]
-        )
-
-        # Add implicit Strathmore context
-        implicit_context = """
-You are providing information about Strathmore University based on the student handbook.
-All questions should be interpreted in the context of Strathmore University unless they are clearly about something else.
-If a question lacks specific context, assume it's about Strathmore University.
-"""
-
-        # Add time awareness context
-        time_context = f"""
-The current date and time in Kenya (Nairobi) is: {current_time_full}
-When answering queries about class schedules or timetables, use this time to determine which classes remain for the day.
-"""
-
-        # Build prompt
-        messages = [
-            {"role": "system", "content": system_instruction + implicit_context + time_context},
-            {
-                "role": "user",
-                "content": f"""
-[CURRENT TIME]
-{current_time_full}
-
-[CONTEXT]
-{context_text}
-
-[USER INTENT]
-The user's question relates to {intent_info["intent_type"].value} and appears to be asking about {intent_info["topic"].value}.
-
-[QUERY]
-{query}
-
-[RESPONSE GUIDELINES]
-{response_guidelines}
-""",
-            },
+        # Enhanced user prompt with more specific instructions
+        user_prompt_parts = [
+            f"QUESTION: {query}",
+            f"INTENT TYPE: {intent_type.value}",
+            f"CONTEXT SOURCES: {len(vector_context)} university documents",
         ]
 
-        # Call the LLM
+        if real_time_data:
+            user_prompt_parts.append(
+                f"REAL-TIME SOURCES: {len(real_time_data.get('results', []))} current sources available"
+            )
+
+        # Add intent-specific response requirements
+        intent_requirements = {
+            IntentType.FEES_QUERY: """
+REQUIRED COVERAGE FOR FEES:
+- Exact fee amounts (current year)
+- Payment deadlines and schedules
+- Payment methods and procedures
+- Available scholarships or financial aid
+- Late payment consequences
+- Contact information for fee inquiries""",
+            IntentType.ADMISSION_QUERY: """
+REQUIRED COVERAGE FOR ADMISSIONS:
+- Entry requirements and qualifications
+- Application deadlines and procedures
+- Required documents and how to submit
+- Application fees and payment methods
+- Selection criteria and process
+- Important dates and timelines
+- Contact information for admissions office""",
+            IntentType.SCHEDULE_QUERY: """
+REQUIRED COVERAGE FOR SCHEDULES:
+- Specific class times and locations
+- Academic calendar dates
+- Registration periods
+- Exam schedules
+- Important academic deadlines
+- How to access personal timetables""",
+            IntentType.PROCEDURAL_QUERY: """
+REQUIRED COVERAGE FOR PROCEDURES:
+- Complete step-by-step process
+- Required documents or prerequisites
+- Where to go and who to contact
+- Timelines and deadlines
+- Costs involved (if any)
+- Alternative methods or options
+- What to do if problems arise""",
+            IntentType.FACTUAL_QUERY: """
+REQUIRED COVERAGE FOR FACTUAL QUESTIONS:
+- Complete answer with context
+- Related important information
+- Practical implications for the user
+- Where to find more detailed information
+- Contact details for further assistance""",
+        }
+
+        if intent_type in intent_requirements:
+            user_prompt_parts.append(intent_requirements[intent_type])
+
+        user_prompt_parts.extend(
+            [
+                "",
+                "AVAILABLE INFORMATION:",
+                context_text,
+                "",
+                """INSTRUCTIONS:
+Provide a comprehensive, complete response that covers all aspects the user needs to know. 
+Include specific details, procedures, costs, deadlines, and contact information when available.
+Structure the response clearly with sections if needed.
+If you have current/real-time information, clearly indicate this.
+Anticipate and answer likely follow-up questions.
+Be thorough but maintain directness - no introductory fluff.""",
+            ]
+        )
+
+        user_prompt = "\n".join(user_prompt_parts)
+
+        # Increase max tokens for more comprehensive responses
+        max_tokens_for_response = min(
+            self.max_tokens * 2, 4000
+        )  # Allow longer responses
+
+        # Generate response with enhanced parameters
+        messages = [
+            {"role": "system", "content": system_instruction},
+            {"role": "user", "content": user_prompt},
+        ]
+
         try:
             response = client.chat.completions.create(
                 model=self.model,
                 messages=messages,
                 temperature=self.temperature,
-                max_tokens=self.max_tokens,
+                max_tokens=max_tokens_for_response,  # Increased token limit
             )
 
-            # Extract response content
-            response_content = response.choices[0].message.content
-
-            # For debugging - calculate token usage
-            prompt_tokens = response.usage.prompt_tokens
-            completion_tokens = response.usage.completion_tokens
-            total_tokens = response.usage.total_tokens
-
-            logger.info(
-                f"Generated response with {prompt_tokens} prompt tokens, {completion_tokens} completion tokens, {total_tokens} total tokens"
-            )
+            content = response.choices[0].message.content
 
             return {
-                "response": response_content,
-                "intent_type": intent_info["intent_type"],
-                "topic": intent_info["topic"],
-                "confidence": intent_info["confidence"],
+                "content": content,
                 "token_usage": {
-                    "prompt_tokens": prompt_tokens,
-                    "completion_tokens": completion_tokens,
-                    "total_tokens": total_tokens,
+                    "prompt_tokens": response.usage.prompt_tokens,
+                    "completion_tokens": response.usage.completion_tokens,
+                    "total_tokens": response.usage.total_tokens,
                 },
-                "current_time": current_time_full,
             }
 
         except Exception as e:
-            logger.error(f"Error generating response: {str(e)}")
+            logger.error(f"Response generation failed: {e}")
+            raise
+
+    def get_real_time_integration_stats(self) -> Dict[str, Any]:
+        """Get statistics about real-time integration usage."""
+        return {
+            "real_time_service_available": self.tavily_service is not None,
+            "real_time_triggers": len(self.real_time_triggers),
+            "always_real_time_topics": len(self.always_real_time_topics),
+            "real_time_model": "Tavily API",
+            "cache_enabled": (
+                hasattr(self.tavily_service, "search_cache")
+                if self.tavily_service
+                else False
+            ),
+            "cache_ttl": (
+                getattr(self.tavily_service, "cache_ttl", 0)
+                if self.tavily_service
+                else 0
+            ),
+        }
+
+    def force_real_time_response(self, query: str) -> Dict[str, Any]:
+        """Force a response using only real-time data - for testing."""
+        if not self.tavily_service:
             return {
-                "response": "I apologize, but I encountered an error while generating a response. Please try again or contact support if the issue persists.",
-                "intent_type": intent_info["intent_type"],
-                "topic": intent_info["topic"],
-                "confidence": intent_info["confidence"],
-                "error": str(e),
+                "response": "Real-time service not available. Please configure TAVILY_API_KEY.",
+                "error": "No real-time service",
+                "real_time_used": False,
             }
 
-    def _get_system_instruction(self, intent_type: IntentType) -> str:
-        """Get the system instruction based on the intent type."""
-        base_instruction = """
-You are an assistant for Strathmore University students, providing PRECISE and FOCUSED information from the student handbook.
-Ground your responses in the provided context.
-Your goal is to provide RELEVANT information directly addressing the user's query.
-Look through the chunks to find specifically relevant information for the query.
-Synthesize information from multiple chunks when necessary, but focus on answering the specific question.
-Structure your responses clearly, using bullet points and headings when appropriate.
-Never make up information or hallucinate facts that aren't in the context.
-When information is truly missing, clearly state that it's not available in the handbook.
-Avoid including tangential or loosely related information that doesn't directly answer the query.
-When presenting timetable or schedule information, use well-formatted tables for clarity.
-"""
+        try:
+            intent_type, confidence = self._quick_intent_recognition(query)
+            real_time_data = self._get_real_time_data(query, intent_type)
 
-        intent_specific_instructions = {
-            IntentType.FACTUAL_QUERY: """
-EXAMINE CONTEXT CHUNKS for information DIRECTLY related to the query.
-Focus on providing precise, factual information specifically addressing the question.
-Include relevant details that directly answer the query, avoiding tangential information.
-Organize information logically with proper structure.
-Be especially focused when providing policy information, requirements, or specific rules.
-""",
-            IntentType.PROCEDURAL_QUERY: """
-SEARCH context chunks for procedural information directly relevant to the query.
-Provide clear step-by-step instructions or explain processes directly related to the question.
-Organize information in a logical sequence and highlight important deadlines or requirements.
-Include only the details necessary to complete the process or understand the procedure.
-Use numbered lists for procedures and bullet points for requirements when appropriate.
-""",
-            IntentType.EXPLANATION_QUERY: """
-EXAMINE context chunks for explanatory information directly addressing the query.
-Explain concepts clearly and concisely, focusing on what the user is specifically asking about.
-Clarify underlying reasons or principles that are directly relevant to the question.
-Synthesize information from multiple chunks if needed, but maintain focus on the specific question.
-Use a structured approach, breaking down complex topics into digestible parts.
-""",
-            IntentType.COMPARISON_QUERY: """
-SEARCH context chunks for comparison information directly relevant to the query.
-Focus on the specific items being compared in the user's question.
-Use structured formatting to make comparisons clear and easy to understand.
-Pull in only the information from chunks that directly relates to the comparison requested.
-Organize information in tables or parallel structures when appropriate.
-""",
-            IntentType.OFF_TOPIC: """
-Before concluding a topic is off-topic, check chunks for any relevant information.
-If truly outside scope, politely inform the user that their question appears to be outside the scope of the Strathmore University handbook.
-Suggest that they might want to ask about topics related to the university instead.
-Do not attempt to answer off-topic questions with made-up information.
-""",
-            IntentType.CLARIFICATION: """
-Address the specific point the user is asking for clarification about.
-Provide additional context or examples that directly clarify the point in question.
-Pull together information from multiple chunks if needed, but maintain focus.
-Be concise and direct in your clarification.
-""",
-            IntentType.FEEDBACK: """
-Acknowledge the feedback professionally.
-If there's a question within the feedback, focus on answering that question directly.
-Keep responses concise and relevant to any questions asked.
-""",
-            IntentType.GENERAL_CHAT: """
-Keep the tone conversational but professional.
-Provide relevant information about Strathmore University that might be helpful.
-Be concise and avoid unnecessary details unless specifically requested.
-""",
-            IntentType.TIME_SENSITIVE_QUERY: """
-Use the current time information to answer time-sensitive queries accurately.
-For class schedule queries, identify the relevant timetable for the specified group.
-Present remaining classes in a well-formatted table with Time, Course, Location, and Instructor.
-Check if today falls within a semester break or holiday period based on the academic calendar.
-Format timetable information in a clear, tabular format for easy reading.
-If multiple possible timetables exist in the context, prioritize the one most relevant to the student's group.
-Include only classes that take place after the current time.
-Consider whether the student might be asking about classes in the current semester.
-""",
+            if not real_time_data:
+                return {
+                    "response": f"No current information found for: {query}",
+                    "real_time_used": True,
+                    "real_time_results": 0,
+                }
+
+            response_content = self._generate_direct_response(
+                query=query,
+                intent_type=intent_type,
+                vector_context=[],  # No vector context - pure real-time
+                real_time_data=real_time_data,
+            )
+
+            return {
+                "response": response_content["content"],
+                "real_time_used": True,
+                "real_time_results": len(real_time_data.get("results", [])),
+                "intent_type": intent_type.value,
+                "approach": "real_time_only",
+                "token_usage": response_content.get("token_usage", {}),
+            }
+
+        except Exception as e:
+            return {
+                "response": f"Error in real-time processing: {str(e)}",
+                "error": str(e),
+                "real_time_used": False,
+            }
+
+    def batch_process_queries(
+        self, queries: List[str], use_real_time: bool = True
+    ) -> List[Dict[str, Any]]:
+        """Process multiple queries efficiently."""
+        results = []
+
+        for i, query in enumerate(queries, 1):
+            logger.info(f"Processing query {i}/{len(queries)}: {query[:50]}...")
+
+            try:
+                result = self.generate_response(
+                    query, use_real_time=use_real_time
+                )
+                result["query_index"] = i
+                result["query"] = query
+                results.append(result)
+
+            except Exception as e:
+                logger.error(f"Failed to process query {i}: {e}")
+                results.append(
+                    {
+                        "query_index": i,
+                        "query": query,
+                        "response": f"Processing failed: {str(e)}",
+                        "error": str(e),
+                        "real_time_used": False,
+                    }
+                )
+
+        return results
+
+    def get_response_stats(self) -> Dict[str, Any]:
+        """Get comprehensive response generator statistics."""
+        stats = {
+            "model": self.model,
+            "temperature": self.temperature,
+            "max_tokens": self.max_tokens,
+            "services": {
+                "vector_db_available": self.vector_db is not None,
+                "embedding_service_available": self.embedding_service
+                is not None,
+                "tavily_service_available": self.tavily_service is not None,
+            },
+            "real_time_config": {
+                "triggers": self.real_time_triggers,
+                "always_real_time_topics": self.always_real_time_topics,
+                "aggressive_mode": True,
+            },
+            "response_style": "comprehensive_direct",
         }
 
-        return base_instruction + intent_specific_instructions.get(
-            intent_type, ""
-        )
+        # Add service-specific stats
+        if self.vector_db:
+            try:
+                vector_stats = self.vector_db.get_collection_stats()
+                stats["vector_db_stats"] = vector_stats
+            except:
+                pass
 
-    def _format_context(self, retrieved_context: List[Dict[str, Any]]) -> str:
-        """Format retrieved context chunks for inclusion in the prompt."""
-        if not retrieved_context:
-            return "No relevant information found in the handbook."
+        if self.embedding_service:
+            try:
+                embedding_stats = self.embedding_service.get_embedding_stats()
+                stats["embedding_stats"] = embedding_stats
+            except:
+                pass
 
-        formatted_chunks = []
-        for i, chunk in enumerate(retrieved_context):
-            formatted_chunk = f"[CHUNK {i+1}] (Relevance: {chunk['score']:.2f})\n{chunk['text']}\n"
-            formatted_chunks.append(formatted_chunk)
+        if self.tavily_service:
+            try:
+                tavily_stats = self.tavily_service.get_cache_stats()
+                stats["tavily_stats"] = tavily_stats
+            except:
+                pass
 
-        return "\n".join(formatted_chunks)
-
-    def _get_response_guidelines(self, intent_type: IntentType) -> str:
-        """Get response guidelines based on the intent type."""
-        common_guidelines = """
-1. Focus on information DIRECTLY RELEVANT to the user's query.
-2. Combine details from relevant context chunks that specifically address the question.
-3. Include clear citations for factual statements when possible.
-4. Structure your response with appropriate headings, bullet points, or numbering for clarity.
-5. If information is missing, acknowledge the limitation and suggest alternatives.
-6. Use a helpful, concise, and educational tone appropriate for university students.
-7. Prioritize RELEVANCE over completeness - include only information that directly answers the query.
-8. When the handbook contains partial information, provide what's available rather than saying nothing is available.
-"""
-
-        intent_specific_guidelines = {
-            IntentType.FACTUAL_QUERY: """
-9. Present facts directly and clearly, organizing related information together.
-10. Focus on the specific facts requested and avoid tangential information.
-11. When multiple chunks contain related information, synthesize them into a focused answer.
-12. Be concise when providing information about policies, requirements, or regulations.
-""",
-            IntentType.PROCEDURAL_QUERY: """
-9. Present steps in a clear, numbered sequence.
-10. Include only the aspects of the procedure that are directly relevant to the query.
-11. Highlight important deadlines, requirements, or potential obstacles.
-12. If the complete procedure isn't available, mention what parts are known and what might be missing.
-""",
-            IntentType.EXPLANATION_QUERY: """
-9. Explain concepts clearly, focusing on what the user specifically asked about.
-10. Combine only the most relevant information from chunks to create a focused explanation.
-11. Use examples to illustrate points when helpful and directly relevant.
-12. Distinguish between facts, policies, and interpretations.
-""",
-            IntentType.COMPARISON_QUERY: """
-9. Clearly identify the items being compared and focus only on those items.
-10. Pull only the most relevant information from chunks for the comparison.
-11. Highlight key similarities and differences in a structured way.
-12. Avoid making subjective judgments about which option is "better" unless explicitly stated in the context.
-""",
-            IntentType.OFF_TOPIC: """
-9. Before concluding a topic is off-topic, carefully check all chunks for any relevant information.
-10. If truly outside scope, politely state that the question appears to be outside the scope of information about Strathmore University.
-11. Do not attempt to answer with made-up information.
-12. Suggest that the user might want to ask about topics related to Strathmore University instead.
-""",
-            IntentType.CLARIFICATION: """
-9. Focus specifically on the point being clarified without adding unnecessary information.
-10. Provide additional context or examples only if they directly help clarify the point in question.
-11. Be concise and direct in your clarification.
-12. If there are multiple interpretations, focus on the most likely one based on context.
-""",
-            IntentType.FEEDBACK: """
-9. Acknowledge the feedback professionally and concisely.
-10. If there's a question within the feedback, focus on answering that question directly.
-11. Keep responses brief and to the point.
-""",
-            IntentType.GENERAL_CHAT: """
-9. Keep the tone conversational but professional.
-10. Provide only information that might be directly helpful to the user's query.
-11. Be concise and avoid lengthy explanations unless specifically requested.
-12. If appropriate, suggest specific topics the user might want to learn more about.
-""",
-            IntentType.TIME_SENSITIVE_QUERY: """
-9. For timetable queries, always format the information in a clear tabular structure.
-10. Use the current time to determine which classes remain for the day.
-11. Include important information such as class time, subject name, venue, and instructor.
-12. Check if the current date falls within a semester break or holiday period.
-13. If a student mentions a specific group (e.g., "ICS 3A"), focus on that group's timetable.
-14. Present only the most relevant schedule information that directly addresses the query.
-"""
-        }
-
-        return common_guidelines + intent_specific_guidelines.get(
-            intent_type, ""
-        )
+        return stats
