@@ -2,6 +2,7 @@
 data/
 config/config.yaml
 database/
+start.sh
 
 # Python
 __pycache__/
