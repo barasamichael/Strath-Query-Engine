@@ -11,6 +11,8 @@ from typing import Any, Dict, List, Optional
 from dataclasses import dataclass
 from enum import Enum
 
+from services.intent_recognizer import IntentType
+
 logger = logging.getLogger("query_router")
 
 
@@ -258,6 +260,24 @@ class SmartQueryRouter:
             indicator in query_lower for indicator in real_time_indicators
         )
 
+    # Canned responses for intents that must not touch the vector DB
+    _CANNED = {
+        IntentType.GENERAL_CHAT: (
+            "Hello! I'm the KnowStrath assistant for Strathmore University. "
+            "Feel free to ask me anything about admissions, fees, courses, facilities, "
+            "policies, schedules, or student life."
+        ),
+        IntentType.FEEDBACK: (
+            "You're welcome! Let me know if there's anything else I can help you with."
+        ),
+        IntentType.OFF_TOPIC: (
+            "I'm here to help with questions about Strathmore University — "
+            "admissions, fees, courses, facilities, policies, schedules, and student life. "
+            "I'm not able to assist with topics outside that scope. "
+            "Is there something university-related I can help you with?"
+        ),
+    }
+
     def route_query(
         self, query: str, conversation_context: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
@@ -271,15 +291,41 @@ class SmartQueryRouter:
         Returns:
             Processing results with routing information
         """
-        print(f"🔍 Analyzing query: {query}")
+        logger.info("Analyzing query: %s", query)
 
-        # Analyze query
+        # Classify intent first — short-circuit before any DB access for
+        # greetings, feedback, and out-of-scope queries.
+        intent_info = self.intent_recognizer.recognize_intent(query, conversation_context)
+        intent_type = intent_info["intent_type"]
+
+        if intent_type in self._CANNED:
+            logger.info(
+                "Short-circuit: intent=%s confidence=%.2f",
+                intent_type,
+                intent_info["confidence"],
+            )
+            return {
+                "answer": self._CANNED[intent_type],
+                "intent_info": intent_info,
+                "search_results": [],
+                "result_count": 0,
+                "approach": "canned",
+                "routing_info": {
+                    "primary_approach": "canned",
+                    "intent_type": intent_type,
+                    "reason": "Query does not require knowledge base lookup",
+                },
+            }
+
+        # Analyse structural patterns for remaining intents
         analysis = self.analyze_query(query)
 
-        print(
-            f"📊 Query type: {analysis.query_type.value} (confidence: {analysis.confidence:.2f})"
+        logger.info(
+            "Query type: %s (confidence: %.2f) — %s",
+            analysis.query_type.value,
+            analysis.confidence,
+            analysis.explanation,
         )
-        print(f"💡 Reasoning: {analysis.explanation}")
 
         # Route based on analysis
         if analysis.query_type == QueryType.STRUCTURED_SCHEDULE:
@@ -305,7 +351,7 @@ class SmartQueryRouter:
 
             # If semantic search returns few results, try structured as fallback
             if len(semantic_result.get("search_results", [])) < 3:
-                print("🔄 Low semantic results, trying structured fallback...")
+                logger.info("Low semantic results, trying structured fallback")
                 structured_result = self._try_structured_fallback(query)
                 if (
                     structured_result
@@ -335,10 +381,9 @@ class SmartQueryRouter:
         context: Optional[Dict[str, Any]],
     ) -> Dict[str, Any]:
         """Handle queries with structured data approach."""
-        print("📋 Using STRUCTURED query processing")
+        logger.info("Using STRUCTURED query processing")
 
         try:
-            # Use natural language to SQL conversion
             result = self.structured_storage.query_with_natural_language(query)
 
             if result["success"] and result["result_count"] > 0:
@@ -354,10 +399,7 @@ class SmartQueryRouter:
                     },
                 }
             else:
-                # Fallback to semantic if structured fails
-                print(
-                    "⚠️ Structured query failed, falling back to semantic search"
-                )
+                logger.info("Structured query returned no results, falling back to semantic search")
                 return self._handle_semantic_query(query, analysis, context)
 
         except Exception as e:
@@ -371,7 +413,7 @@ class SmartQueryRouter:
         context: Optional[Dict[str, Any]],
     ) -> Dict[str, Any]:
         """Handle queries that benefit from both approaches."""
-        print("🔄 Using HYBRID query processing")
+        logger.info("Using HYBRID query processing")
 
         try:
             # Try structured first
@@ -412,13 +454,12 @@ class SmartQueryRouter:
         context: Optional[Dict[str, Any]],
     ) -> Dict[str, Any]:
         """Handle queries with semantic search approach."""
-        print("🔍 Using SEMANTIC search processing")
+        logger.info("Using SEMANTIC search processing")
 
         try:
-            # Use existing intent recognizer and vector search
-            intent_info = self.intent_recognizer.recognize_intent(
-                query, context
-            )
+            # Intent was already classified in route_query; re-use context here
+            # so that semantic handler can pass it along in the result.
+            intent_info = self.intent_recognizer.recognize_intent(query, context)
 
             # Get semantic search results
             search_results = self.vector_db_service.multi_query_search(
