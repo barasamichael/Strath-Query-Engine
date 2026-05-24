@@ -18,7 +18,12 @@ logger = logging.getLogger("vector_db")
 
 
 class VectorDBService:
-    """Optimized vector database service with hybrid search and aggressive real-time integration."""
+    """
+    Vector database service with hybrid search (semantic + TF-IDF keyword).
+
+    Real-time web retrieval (Tavily) is handled exclusively by ResponseGenerator.
+    The tavily_service parameter is kept for diagnostic endpoints only.
+    """
 
     def __init__(
         self,
@@ -41,42 +46,33 @@ class VectorDBService:
 
             self.collection = self._get_or_create_collection()
 
-            # TF-IDF for hybrid search
-            self.tfidf_vectorizer = None
+            # TF-IDF hybrid search state.
+            # _tfidf_doc_cache is built alongside the matrix so that positional
+            # indices from TF-IDF similarity always align with the right document.
+            self.tfidf_vectorizer: Optional[TfidfVectorizer] = None
             self.tfidf_matrix = None
-            self.document_texts = []
+            self.document_texts: List[str] = []
+            self._tfidf_doc_cache: List[Dict[str, Any]] = []
 
-            # Real-time integration settings
-            self.real_time_triggers = [
-                "current",
-                "latest",
-                "recent",
-                "today",
-                "now",
-                "this year",
-                "2024",
-                "2025",
-                "deadline",
-                "announcement",
-                "news",
-                "update",
-                "fee",
-                "tuition",
-                "cost",
-                "admission",
-                "registration",
-            ]
+            # Bug 3 fix: rebuild TF-IDF from existing data on startup so hybrid
+            # search is active immediately without requiring index_chunks() first.
+            if self.collection.count() > 0:
+                self._prepare_hybrid_search()
 
             logger.info(
-                f"VectorDBService initialized with {self.collection.count()} vectors"
+                f"VectorDBService initialised with {self.collection.count()} vectors"
             )
 
         except Exception as e:
-            logger.error(f"Failed to initialize VectorDBService: {e}")
+            logger.error(f"Failed to initialise VectorDBService: {e}")
             raise
 
+    # ------------------------------------------------------------------
+    # Collection management
+    # ------------------------------------------------------------------
+
     def _get_or_create_collection(self):
-        """Get existing collection or create new one."""
+        """Get existing collection or create a new one."""
         try:
             collection = self.client.get_collection(name=self.collection_name)
             logger.info(f"Loaded existing collection: {self.collection_name}")
@@ -93,9 +89,7 @@ class VectorDBService:
             if recreate:
                 try:
                     self.client.delete_collection(name=self.collection_name)
-                    logger.info(
-                        f"Deleted existing collection: {self.collection_name}"
-                    )
+                    logger.info(f"Deleted existing collection: {self.collection_name}")
                 except Exception as e:
                     logger.warning(f"No existing collection to delete: {e}")
 
@@ -107,15 +101,18 @@ class VectorDBService:
             self.tfidf_vectorizer = None
             self.tfidf_matrix = None
             self.document_texts = []
+            self._tfidf_doc_cache = []
 
         except Exception as e:
-            logger.error(f"Error initializing collection: {e}")
+            logger.error(f"Error initialising collection: {e}")
             raise
 
-    def index_chunks(
-        self, chunks_file: Optional[Union[str, Path]] = None
-    ) -> None:
-        """Index chunks with hybrid search preparation."""
+    # ------------------------------------------------------------------
+    # Indexing
+    # ------------------------------------------------------------------
+
+    def index_chunks(self, chunks_file: Optional[Union[str, Path]] = None) -> None:
+        """Index chunks and rebuild hybrid search components."""
         try:
             self._index_chunks_standard(chunks_file)
             self._prepare_hybrid_search()
@@ -126,7 +123,6 @@ class VectorDBService:
     def _index_chunks_standard(
         self, chunks_file: Optional[Union[str, Path]] = None
     ) -> None:
-        """Standard chunk indexing."""
         chunks_dir = Path(ROOT_DIR) / "data" / "chunks"
 
         files_to_process = (
@@ -150,7 +146,6 @@ class VectorDBService:
         logger.info(f"Total vectors in collection: {self.collection.count()}")
 
     def _index_chunks_file(self, chunks_file: Path) -> None:
-        """Index chunks from a single file."""
         logger.info(f"Indexing chunks from: {chunks_file.name}")
 
         doc_id = chunks_file.stem.replace("_chunks", "")
@@ -178,10 +173,7 @@ class VectorDBService:
 
         chunk_lookup = {chunk["chunk_id"]: chunk for chunk in chunks}
 
-        ids = []
-        documents = []
-        embeddings = []
-        metadatas = []
+        ids, documents, embeddings, metadatas = [], [], [], []
 
         for chunk_id, embedding in embeddings_data.items():
             if chunk_id in chunk_lookup:
@@ -206,35 +198,51 @@ class VectorDBService:
 
                 metadatas.append(metadata)
 
-        # Batch insert
         batch_size = 100
         for i in range(0, len(ids), batch_size):
-            batch_ids = ids[i : i + batch_size]
-            batch_embeddings = embeddings[i : i + batch_size]
-            batch_documents = documents[i : i + batch_size]
-            batch_metadatas = metadatas[i : i + batch_size]
-
             self.collection.add(
-                ids=batch_ids,
-                embeddings=batch_embeddings,
-                documents=batch_documents,
-                metadatas=batch_metadatas,
+                ids=ids[i: i + batch_size],
+                embeddings=embeddings[i: i + batch_size],
+                documents=documents[i: i + batch_size],
+                metadatas=metadatas[i: i + batch_size],
             )
 
-        logger.info(f"Successfully indexed {len(ids)} chunks from {doc_id}")
+        logger.info(f"Indexed {len(ids)} chunks from {doc_id}")
+
+    # ------------------------------------------------------------------
+    # Hybrid search preparation
+    # ------------------------------------------------------------------
 
     def _prepare_hybrid_search(self) -> None:
-        """Prepare TF-IDF components for hybrid search."""
+        """
+        Build TF-IDF matrix and a doc cache aligned with it.
+
+        The cache stores one dict per document in the same order as the matrix
+        rows so that a TF-IDF similarity index is always a valid cache index.
+        This avoids the re-fetch + positional alignment bug that existed before.
+        """
         try:
             all_data = self.collection.get()
 
             if not all_data["documents"]:
-                logger.warning(
-                    "No documents found for hybrid search preparation"
-                )
+                logger.warning("No documents in collection — hybrid search disabled")
                 return
 
             self.document_texts = all_data["documents"]
+
+            # Bug 2 & 5 fix: build the doc cache from the SAME fetch and in the
+            # SAME order as the matrix so indices always correspond correctly.
+            self._tfidf_doc_cache = [
+                {
+                    "chunk_id": m.get("chunk_id", ""),
+                    "doc_id": m.get("doc_id", ""),
+                    "chunk_index": m.get("chunk_index", 0),
+                    "information_score": m.get("information_score", 0.5),
+                    "semantic_boundary_score": m.get("semantic_boundary_score", 0.5),
+                    "text": doc,
+                }
+                for m, doc in zip(all_data["metadatas"], all_data["documents"])
+            ]
 
             self.tfidf_vectorizer = TfidfVectorizer(
                 max_features=5000,
@@ -243,19 +251,23 @@ class VectorDBService:
                 max_df=0.95,
                 min_df=2,
             )
-
             self.tfidf_matrix = self.tfidf_vectorizer.fit_transform(
                 self.document_texts
             )
 
             logger.info(
-                f"Hybrid search prepared with {len(self.document_texts)} documents"
+                f"Hybrid search ready with {len(self.document_texts)} documents"
             )
 
         except Exception as e:
             logger.error(f"Failed to prepare hybrid search: {e}")
             self.tfidf_vectorizer = None
             self.tfidf_matrix = None
+            self._tfidf_doc_cache = []
+
+    # ------------------------------------------------------------------
+    # Search
+    # ------------------------------------------------------------------
 
     def search(
         self,
@@ -263,339 +275,36 @@ class VectorDBService:
         top_k: int = 20,
         filter_doc_id: Optional[str] = None,
         use_hybrid: bool = True,
-        include_real_time: bool = False,
+        include_real_time: bool = False,  # kept for API backward-compat; not used here
     ) -> List[Dict[str, Any]]:
-        """Enhanced search with hybrid approach and aggressive real-time integration."""
+        """
+        Hybrid semantic + keyword search.
+
+        Real-time retrieval is intentionally excluded from this layer.
+        ResponseGenerator handles Tavily calls and merges results before
+        passing context to the LLM, preventing duplicate web search calls.
+        """
         try:
             if self.collection.count() == 0:
                 logger.warning("Collection is empty")
                 return []
 
-            # Check for real-time needs FIRST
-            needs_real_time = self._should_use_real_time(query)
-            if needs_real_time or include_real_time:
-                real_time_results = self._get_aggressive_real_time_info(query)
-            else:
-                real_time_results = []
+            semantic_results = self._semantic_search(query, top_k, filter_doc_id)
 
-            # Get semantic search results
-            semantic_results = self._semantic_search(
-                query, top_k, filter_doc_id
-            )
-
-            # Add keyword search if hybrid enabled
             if use_hybrid and self.tfidf_vectorizer is not None:
                 keyword_results = self._keyword_search(query, top_k // 2)
-                combined_results = self._combine_search_results(
-                    semantic_results, keyword_results
-                )
+                combined = self._combine_search_results(semantic_results, keyword_results)
             else:
-                combined_results = semantic_results
+                combined = semantic_results
 
-            # Apply reranking
-            if combined_results:
-                combined_results = self._rerank_results(
-                    query, combined_results, top_k
-                )
+            if combined:
+                combined = self._rerank_results(query, combined, top_k)
 
-            # Integrate real-time results
-            if real_time_results:
-                combined_results = self._integrate_real_time_results(
-                    combined_results, real_time_results
-                )
-
-            return combined_results[:top_k]
+            return combined[:top_k]
 
         except Exception as e:
             logger.error(f"Search error: {e}")
             return []
-
-    def _should_use_real_time(self, query: str) -> bool:
-        """Determine if query needs real-time information aggressively."""
-        query_lower = query.lower()
-
-        # Check for explicit triggers
-        if any(trigger in query_lower for trigger in self.real_time_triggers):
-            return True
-
-        # Check for time-sensitive topics
-        time_sensitive = [
-            "fee",
-            "admission",
-            "schedule",
-            "deadline",
-            "announcement",
-        ]
-        if any(topic in query_lower for topic in time_sensitive):
-            return True
-
-        return False
-
-    def _get_aggressive_real_time_info(
-        self, query: str
-    ) -> List[Dict[str, Any]]:
-        """Get real-time information aggressively using Tavily."""
-        if not self.tavily_service:
-            return []
-
-        try:
-            # Enhance query for university context
-            enhanced_query = self._enhance_query_for_tavily(query)
-
-            # Search with multiple strategies
-            strategies = [
-                enhanced_query,
-                f"Strathmore University {query} {datetime.now().year}",
-                f"{query} Strathmore current information",
-            ]
-
-            all_results = []
-            for strategy in strategies[:2]:  # Limit for cost control
-                try:
-                    result = self.tavily_service.search(
-                        query=strategy,
-                        max_results=2,
-                        search_depth="basic",
-                        include_answer=True,
-                    )
-                    if result.get("results"):
-                        all_results.extend(result["results"])
-                except Exception as e:
-                    logger.warning(
-                        f"Tavily search failed for '{strategy}': {e}"
-                    )
-                    continue
-
-            # Deduplicate and format
-            unique_results = {}
-            for result in all_results:
-                url = result.get("url", "")
-                if url not in unique_results:
-                    # Convert to our format
-                    formatted_result = {
-                        "chunk_id": f"realtime_{hash(url)}",
-                        "doc_id": "real_time",
-                        "chunk_index": 0,
-                        "text": f"CURRENT: {result.get('title', '')} - {result.get('content', '')}",
-                        "score": 0.95,
-                        "search_type": "real_time",
-                        "information_score": 1.0,
-                        "semantic_boundary_score": 1.0,
-                        "url": url,
-                        "real_time": True,
-                        "relevance_score": result.get("relevance_score", 0.8),
-                        "source": "Tavily Real-time",
-                    }
-                    unique_results[url] = formatted_result
-
-            return list(unique_results.values())
-
-        except Exception as e:
-            logger.error(f"Real-time search failed: {e}")
-            return []
-
-    def _enhance_query_for_tavily(self, query: str) -> str:
-        """Enhance query for better Tavily results."""
-        query_lower = query.lower()
-
-        if "strathmore" not in query_lower:
-            query = f"Strathmore University {query}"
-
-        current_year = str(datetime.now().year)
-        if current_year not in query:
-            query = f"{query} {current_year}"
-
-        return query
-
-    def _semantic_search(
-        self, query: str, top_k: int, filter_doc_id: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
-        """Perform semantic search using embeddings."""
-        query_embedding = self.embedding_service.embed_query(query)
-        if query_embedding is None:
-            return []
-
-        where_filter = {"doc_id": filter_doc_id} if filter_doc_id else None
-
-        results = self.collection.query(
-            query_embeddings=[query_embedding.tolist()],
-            n_results=top_k,
-            where=where_filter,
-        )
-
-        formatted_results = []
-        if results and results["ids"] and len(results["ids"]) > 0:
-            for i in range(len(results["ids"][0])):
-                metadata = results["metadatas"][0][i]
-
-                result = {
-                    "chunk_id": metadata.get("chunk_id", ""),
-                    "doc_id": metadata.get("doc_id", ""),
-                    "chunk_index": metadata.get("chunk_index", 0),
-                    "text": results["documents"][0][i],
-                    "score": 1 - results["distances"][0][i],
-                    "search_type": "semantic",
-                    "information_score": metadata.get("information_score", 0.5),
-                    "semantic_boundary_score": metadata.get(
-                        "semantic_boundary_score", 0.5
-                    ),
-                }
-
-                formatted_results.append(result)
-
-        return formatted_results
-
-    def _keyword_search(self, query: str, top_k: int) -> List[Dict[str, Any]]:
-        """Perform keyword search using TF-IDF."""
-        if self.tfidf_vectorizer is None or self.tfidf_matrix is None:
-            return []
-
-        try:
-            query_vector = self.tfidf_vectorizer.transform([query])
-            similarities = cosine_similarity(
-                query_vector, self.tfidf_matrix
-            ).flatten()
-            top_indices = similarities.argsort()[-top_k:][::-1]
-
-            all_data = self.collection.get()
-
-            keyword_results = []
-            for idx in top_indices:
-                if similarities[idx] > 0.1:
-                    metadata = (
-                        all_data["metadatas"][idx]
-                        if idx < len(all_data["metadatas"])
-                        else {}
-                    )
-
-                    result = {
-                        "chunk_id": metadata.get("chunk_id", ""),
-                        "doc_id": metadata.get("doc_id", ""),
-                        "chunk_index": metadata.get("chunk_index", 0),
-                        "text": (
-                            all_data["documents"][idx]
-                            if idx < len(all_data["documents"])
-                            else ""
-                        ),
-                        "score": float(similarities[idx]),
-                        "search_type": "keyword",
-                        "information_score": metadata.get(
-                            "information_score", 0.5
-                        ),
-                        "semantic_boundary_score": metadata.get(
-                            "semantic_boundary_score", 0.5
-                        ),
-                    }
-
-                    keyword_results.append(result)
-
-            return keyword_results
-
-        except Exception as e:
-            logger.error(f"Keyword search failed: {e}")
-            return []
-
-    def _combine_search_results(
-        self, semantic_results: List[Dict], keyword_results: List[Dict]
-    ) -> List[Dict]:
-        """Combine semantic and keyword search results intelligently."""
-        semantic_lookup = {
-            result["chunk_id"]: result for result in semantic_results
-        }
-        combined_results = list(semantic_results)
-
-        for keyword_result in keyword_results:
-            chunk_id = keyword_result["chunk_id"]
-
-            if chunk_id in semantic_lookup:
-                # Boost score of existing result
-                semantic_result = semantic_lookup[chunk_id]
-                semantic_result["score"] = (
-                    0.7 * semantic_result["score"]
-                    + 0.3 * keyword_result["score"]
-                )
-                semantic_result["search_type"] = "hybrid"
-            else:
-                # Add new result with slight penalty
-                keyword_result["score"] *= 0.8
-                combined_results.append(keyword_result)
-
-        combined_results.sort(key=lambda x: x["score"], reverse=True)
-        return combined_results
-
-    def _rerank_results(
-        self, query: str, results: List[Dict], top_k: int
-    ) -> List[Dict]:
-        """Rerank search results using multiple factors."""
-        if not results or len(results) <= 1:
-            return results[:top_k]
-
-        try:
-            for result in results:
-                original_score = result.get("score", 0.0)
-
-                # Length penalty for very short chunks
-                text_length = len(result.get("text", ""))
-                length_penalty = min(1.0, text_length / 200)
-
-                # Information score boost
-                info_score = result.get("information_score", 0.5)
-
-                # Semantic boundary score boost
-                boundary_score = result.get("semantic_boundary_score", 0.5)
-
-                # Real-time boost
-                real_time_boost = 0.2 if result.get("real_time") else 0.0
-
-                # Calculate enhanced score
-                enhanced_score = (
-                    0.5 * original_score
-                    + 0.15 * length_penalty
-                    + 0.15 * info_score
-                    + 0.1 * boundary_score
-                    + 0.1
-                    + real_time_boost
-                )
-
-                result["enhanced_score"] = enhanced_score
-                result["reranked"] = True
-
-            # Sort by enhanced score
-            results.sort(
-                key=lambda x: x.get("enhanced_score", x.get("score", 0)),
-                reverse=True,
-            )
-
-            logger.info(
-                f"Reranked {len(results)} results, returning top {top_k}"
-            )
-            return results[:top_k]
-
-        except Exception as e:
-            logger.error(f"Reranking failed: {e}")
-            return results[:top_k]
-
-    def _integrate_real_time_results(
-        self, search_results: List[Dict], real_time_results: List[Dict]
-    ) -> List[Dict]:
-        """Integrate real-time results with search results strategically."""
-        if not real_time_results:
-            return search_results
-
-        # Insert real-time results at the top, but merge intelligently
-        integrated_results = []
-
-        # Add top real-time results first
-        integrated_results.extend(real_time_results[:2])
-
-        # Add top search results
-        integrated_results.extend(search_results[:15])
-
-        # Add remaining real-time results
-        if len(real_time_results) > 2:
-            integrated_results.extend(real_time_results[2:])
-
-        return integrated_results
 
     def multi_query_search(
         self,
@@ -604,26 +313,22 @@ class VectorDBService:
         filter_doc_id: Optional[str] = None,
         use_query_expansion: bool = True,
     ) -> List[Dict[str, Any]]:
-        """Multi-query search with query expansion and enhanced retrieval."""
+        """Multi-query search with optional query expansion."""
         try:
-            # Original query results with aggressive real-time
             original_results = self.search(
                 query=query,
                 top_k=int(top_k * 0.6),
                 filter_doc_id=filter_doc_id,
                 use_hybrid=True,
-                include_real_time=True,
             )
 
             if not use_query_expansion:
                 return original_results[:top_k]
 
-            # Generate expanded queries
             expanded_queries = self._generate_expanded_queries(query)
             all_results = original_results.copy()
             seen_chunks = {r["chunk_id"] for r in original_results}
 
-            # Search with expanded queries
             for expanded_query in expanded_queries:
                 if len(all_results) >= top_k:
                     break
@@ -634,7 +339,6 @@ class VectorDBService:
                         top_k=5,
                         filter_doc_id=filter_doc_id,
                         use_hybrid=True,
-                        include_real_time=False,  # Avoid duplicate real-time calls
                     )
 
                     for result in expanded_results:
@@ -648,7 +352,6 @@ class VectorDBService:
                     logger.warning(f"Expanded query failed: {e}")
                     continue
 
-            # Final reranking
             if len(all_results) > top_k:
                 all_results = self._rerank_results(query, all_results, top_k)
 
@@ -663,55 +366,294 @@ class VectorDBService:
             logger.error(f"Multi-query search error: {e}")
             return self.search(query, top_k, filter_doc_id)
 
+    # ------------------------------------------------------------------
+    # Search internals
+    # ------------------------------------------------------------------
+
+    def _semantic_search(
+        self, query: str, top_k: int, filter_doc_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Semantic search using dense embeddings."""
+        query_embedding = self.embedding_service.embed_query(query)
+        if query_embedding is None:
+            return []
+
+        where_filter = {"doc_id": filter_doc_id} if filter_doc_id else None
+
+        results = self.collection.query(
+            query_embeddings=[query_embedding.tolist()],
+            n_results=top_k,
+            where=where_filter,
+        )
+
+        formatted = []
+        if results and results["ids"] and results["ids"][0]:
+            for i in range(len(results["ids"][0])):
+                metadata = results["metadatas"][0][i]
+
+                # Bug 8 fix: ChromaDB cosine distance is in [0, 2]; converting
+                # with (1 - distance) can yield negative values for dissimilar
+                # pairs. Clamp to [0, 1] for consistent downstream arithmetic.
+                raw_score = 1.0 - results["distances"][0][i]
+                score = max(0.0, min(1.0, raw_score))
+
+                formatted.append({
+                    "chunk_id": metadata.get("chunk_id", ""),
+                    "doc_id": metadata.get("doc_id", ""),
+                    "chunk_index": metadata.get("chunk_index", 0),
+                    "text": results["documents"][0][i],
+                    "score": score,
+                    "search_type": "semantic",
+                    "information_score": metadata.get("information_score", 0.5),
+                    "semantic_boundary_score": metadata.get(
+                        "semantic_boundary_score", 0.5
+                    ),
+                })
+
+        return formatted
+
+    def _keyword_search(self, query: str, top_k: int) -> List[Dict[str, Any]]:
+        """
+        Keyword search using the TF-IDF matrix built at prepare time.
+
+        Bug 2 & 5 fix: uses self._tfidf_doc_cache instead of re-fetching
+        from ChromaDB. The cache and the matrix share the same row order so
+        positional indices are always correct and no extra I/O is needed.
+        """
+        if self.tfidf_vectorizer is None or self.tfidf_matrix is None:
+            return []
+
+        try:
+            query_vector = self.tfidf_vectorizer.transform([query])
+            similarities = cosine_similarity(query_vector, self.tfidf_matrix).flatten()
+            top_indices = similarities.argsort()[-top_k:][::-1]
+
+            results = []
+            for idx in top_indices:
+                if similarities[idx] <= 0.1:
+                    continue
+                if idx >= len(self._tfidf_doc_cache):
+                    continue
+
+                cached = self._tfidf_doc_cache[idx]
+                results.append({
+                    "chunk_id": cached["chunk_id"],
+                    "doc_id": cached["doc_id"],
+                    "chunk_index": cached["chunk_index"],
+                    "text": cached["text"],
+                    "score": float(similarities[idx]),
+                    "search_type": "keyword",
+                    "information_score": cached["information_score"],
+                    "semantic_boundary_score": cached["semantic_boundary_score"],
+                })
+
+            return results
+
+        except Exception as e:
+            logger.error(f"Keyword search failed: {e}")
+            return []
+
+    def _combine_search_results(
+        self, semantic_results: List[Dict], keyword_results: List[Dict]
+    ) -> List[Dict]:
+        """
+        Merge semantic and keyword results.
+
+        Chunks that appear in both lists get a weighted score boost.
+        Keyword-only results are added with a small penalty since they
+        lack the semantic relevance signal.
+        """
+        semantic_lookup = {r["chunk_id"]: r for r in semantic_results}
+        combined = [dict(r) for r in semantic_results]  # work on copies
+
+        for kw_result in keyword_results:
+            chunk_id = kw_result["chunk_id"]
+
+            if chunk_id in semantic_lookup:
+                # Find the copy in combined and boost it
+                for r in combined:
+                    if r["chunk_id"] == chunk_id:
+                        r["score"] = 0.7 * r["score"] + 0.3 * kw_result["score"]
+                        r["search_type"] = "hybrid"
+                        break
+            else:
+                penalised = dict(kw_result)
+                penalised["score"] *= 0.8
+                combined.append(penalised)
+
+        combined.sort(key=lambda x: x["score"], reverse=True)
+        return combined
+
+    def _rerank_results(
+        self, query: str, results: List[Dict], top_k: int
+    ) -> List[Dict]:
+        """
+        Rerank by combining similarity score with chunk quality signals.
+
+        Bug 4 fix:
+        - Weights now sum to exactly 1.0 (no stray constant).
+        - Real-time boost removed from this layer; Tavily results are
+          integrated at the ResponseGenerator level with explicit ordering.
+        - Scores are clamped before weighting so the formula stays in [0, 1].
+        """
+        if not results or len(results) <= 1:
+            return results[:top_k]
+
+        try:
+            for result in results:
+                original_score = max(0.0, min(1.0, result.get("score", 0.0)))
+
+                # Mild quality signals from the chunking pipeline
+                text_length = len(result.get("text", ""))
+                length_penalty = min(1.0, text_length / 200)
+                info_score = max(0.0, min(1.0, result.get("information_score", 0.5)))
+                boundary_score = max(0.0, min(1.0, result.get("semantic_boundary_score", 0.5)))
+
+                # Weights: 0.60 + 0.15 + 0.15 + 0.10 = 1.00
+                result["enhanced_score"] = (
+                    0.60 * original_score
+                    + 0.15 * length_penalty
+                    + 0.15 * info_score
+                    + 0.10 * boundary_score
+                )
+                result["reranked"] = True
+
+            results.sort(
+                key=lambda x: x.get("enhanced_score", x.get("score", 0)),
+                reverse=True,
+            )
+            return results[:top_k]
+
+        except Exception as e:
+            logger.error(f"Reranking failed: {e}")
+            return results[:top_k]
+
     def _generate_expanded_queries(self, query: str) -> List[str]:
-        """Generate expanded queries for better retrieval."""
+        """Generate domain-specific query expansions for better recall."""
         query_lower = query.lower()
-        expanded_queries = []
+        expanded = []
 
         if "strathmore" not in query_lower:
-            expanded_queries.append(f"{query} Strathmore University")
+            expanded.append(f"{query} Strathmore University")
 
-        # Domain-specific expansions
-        if any(
-            word in query_lower
-            for word in ["fee", "cost", "payment", "tuition"]
-        ):
-            expanded_queries.extend(
-                [
-                    f"{query} payment schedule deadline",
-                    f"{query} scholarship financial aid",
-                ]
-            )
-        elif any(
-            word in query_lower for word in ["admission", "apply", "entry"]
-        ):
-            expanded_queries.extend(
-                [
-                    f"{query} requirements qualifications",
-                    f"{query} application process procedure",
-                ]
-            )
-        elif any(
-            word in query_lower for word in ["class", "schedule", "timetable"]
-        ):
-            expanded_queries.extend(
-                [
-                    f"{query} semester academic calendar",
-                    f"{query} lecture tutorial lab",
-                ]
-            )
+        if any(w in query_lower for w in ["fee", "cost", "payment", "tuition"]):
+            expanded.extend([
+                f"{query} payment schedule deadline",
+                f"{query} scholarship financial aid",
+            ])
+        elif any(w in query_lower for w in ["admission", "apply", "entry"]):
+            expanded.extend([
+                f"{query} requirements qualifications",
+                f"{query} application process procedure",
+            ])
+        elif any(w in query_lower for w in ["class", "schedule", "timetable"]):
+            expanded.extend([
+                f"{query} semester academic calendar",
+                f"{query} lecture tutorial lab",
+            ])
         else:
-            expanded_queries.extend(
-                [
-                    f"{query} policy procedure",
-                    f"{query} student guide information",
-                ]
+            expanded.extend([
+                f"{query} policy procedure",
+                f"{query} student guide information",
+            ])
+
+        return expanded[:3]
+
+    # ------------------------------------------------------------------
+    # Similarity lookup
+    # ------------------------------------------------------------------
+
+    def get_similar_chunks(
+        self, chunk_id: str, top_k: int = 5
+    ) -> List[Dict[str, Any]]:
+        """
+        Find chunks similar to a given chunk by embedding similarity.
+
+        Bug 1 fix: include=["embeddings"] must be passed to .get() because
+        ChromaDB does not return embeddings by default.
+        """
+        try:
+            source_data = self.collection.get(
+                ids=[chunk_id], include=["embeddings", "documents", "metadatas"]
             )
 
-        return expanded_queries[:3]
+            if not source_data["embeddings"] or not source_data["embeddings"][0]:
+                logger.warning(f"Chunk {chunk_id} not found or has no embedding")
+                return []
+
+            source_embedding = source_data["embeddings"][0]
+
+            results = self.collection.query(
+                query_embeddings=[source_embedding], n_results=top_k + 1
+            )
+
+            similar = []
+            if results and results["ids"] and results["ids"][0]:
+                for i, result_id in enumerate(results["ids"][0]):
+                    if result_id == chunk_id:
+                        continue
+                    metadata = results["metadatas"][0][i]
+                    raw_score = 1.0 - results["distances"][0][i]
+                    similar.append({
+                        "chunk_id": result_id,
+                        "doc_id": metadata.get("doc_id", ""),
+                        "text": results["documents"][0][i],
+                        "similarity": max(0.0, min(1.0, raw_score)),
+                        "information_score": metadata.get("information_score", 0.5),
+                    })
+
+            return similar[:top_k]
+
+        except Exception as e:
+            logger.error(f"Error finding similar chunks: {e}")
+            return []
+
+    # ------------------------------------------------------------------
+    # Document management
+    # ------------------------------------------------------------------
+
+    def delete_document(self, doc_id: str) -> bool:
+        """Delete all chunks for a document and rebuild hybrid search index."""
+        try:
+            results = self.collection.get(where={"doc_id": doc_id})
+
+            if not results["ids"]:
+                logger.warning(f"No chunks found for document {doc_id}")
+                return False
+
+            self.collection.delete(ids=results["ids"])
+            self._prepare_hybrid_search()
+            logger.info(f"Deleted {len(results['ids'])} chunks for document {doc_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error deleting document {doc_id}: {e}")
+            return False
+
+    def optimize_collection(self) -> Dict[str, Any]:
+        """Rebuild hybrid search index and return before/after stats."""
+        try:
+            initial_stats = self.get_collection_stats()
+            self._prepare_hybrid_search()
+            final_stats = self.get_collection_stats()
+
+            return {
+                "initial_count": initial_stats.get("count", 0),
+                "final_count": final_stats.get("count", 0),
+                "hybrid_search_rebuilt": True,
+                "optimization_timestamp": datetime.now().isoformat(),
+            }
+
+        except Exception as e:
+            logger.error(f"Collection optimization failed: {e}")
+            return {"error": str(e)}
+
+    # ------------------------------------------------------------------
+    # Stats and diagnostics
+    # ------------------------------------------------------------------
 
     def get_collection_stats(self) -> Dict[str, Any]:
-        """Get comprehensive collection statistics."""
+        """Return comprehensive collection statistics."""
         try:
             count = self.collection.count()
 
@@ -721,7 +663,6 @@ class VectorDBService:
                 "dimension": self.dimension,
                 "hybrid_search_enabled": self.tfidf_vectorizer is not None,
                 "real_time_integration": self.tavily_service is not None,
-                "real_time_triggers": len(self.real_time_triggers),
             }
 
             if count > 0:
@@ -729,18 +670,13 @@ class VectorDBService:
 
                 if sample_data["metadatas"]:
                     info_scores = [
-                        meta.get("information_score", 0)
-                        for meta in sample_data["metadatas"]
+                        m.get("information_score", 0)
+                        for m in sample_data["metadatas"]
                     ]
-                    if info_scores:
-                        stats["avg_information_score"] = sum(info_scores) / len(
-                            info_scores
-                        )
+                    stats["avg_information_score"] = sum(info_scores) / len(info_scores)
 
                     semantic_count = sum(
-                        1
-                        for meta in sample_data["metadatas"]
-                        if meta.get("semantic_chunking")
+                        1 for m in sample_data["metadatas"] if m.get("semantic_chunking")
                     )
                     stats["semantic_chunked_ratio"] = semantic_count / len(
                         sample_data["metadatas"]
@@ -752,116 +688,9 @@ class VectorDBService:
             logger.error(f"Error getting stats: {e}")
             return {"error": str(e)}
 
-    def get_similar_chunks(
-        self, chunk_id: str, top_k: int = 5
-    ) -> List[Dict[str, Any]]:
-        """Find chunks similar to a given chunk."""
-        try:
-            source_data = self.collection.get(ids=[chunk_id])
-
-            if not source_data["embeddings"]:
-                logger.warning(f"Chunk {chunk_id} not found")
-                return []
-
-            source_embedding = source_data["embeddings"][0]
-
-            results = self.collection.query(
-                query_embeddings=[source_embedding], n_results=top_k + 1
-            )
-
-            similar_chunks = []
-            if results and results["ids"] and len(results["ids"]) > 0:
-                for i, result_id in enumerate(results["ids"][0]):
-                    if result_id != chunk_id:
-                        metadata = results["metadatas"][0][i]
-
-                        chunk = {
-                            "chunk_id": result_id,
-                            "doc_id": metadata.get("doc_id", ""),
-                            "text": results["documents"][0][i],
-                            "similarity": 1 - results["distances"][0][i],
-                            "information_score": metadata.get(
-                                "information_score", 0.5
-                            ),
-                        }
-                        similar_chunks.append(chunk)
-
-            return similar_chunks[:top_k]
-
-        except Exception as e:
-            logger.error(f"Error finding similar chunks: {e}")
-            return []
-
-    def delete_document(self, doc_id: str) -> bool:
-        """Delete all chunks for a specific document."""
-        try:
-            results = self.collection.get(where={"doc_id": doc_id})
-
-            if results["ids"]:
-                self.collection.delete(ids=results["ids"])
-                self._prepare_hybrid_search()
-
-                logger.info(
-                    f"Deleted {len(results['ids'])} chunks for document {doc_id}"
-                )
-                return True
-            else:
-                logger.warning(f"No chunks found for document {doc_id}")
-                return False
-
-        except Exception as e:
-            logger.error(f"Error deleting document {doc_id}: {e}")
-            return False
-
-    def optimize_collection(self) -> Dict[str, Any]:
-        """Optimize collection performance."""
-        try:
-            initial_stats = self.get_collection_stats()
-            self._prepare_hybrid_search()
-            final_stats = self.get_collection_stats()
-
-            optimization_report = {
-                "initial_count": initial_stats.get("count", 0),
-                "final_count": final_stats.get("count", 0),
-                "hybrid_search_rebuilt": True,
-                "real_time_integration_active": self.tavily_service is not None,
-                "optimization_timestamp": datetime.now().isoformat(),
-            }
-
-            logger.info("Collection optimization completed")
-            return optimization_report
-
-        except Exception as e:
-            logger.error(f"Collection optimization failed: {e}")
-            return {"error": str(e)}
-
-    def test_real_time_integration(self, query: str) -> Dict[str, Any]:
-        """Test real-time integration specifically."""
-        if not self.tavily_service:
-            return {
-                "error": "Tavily service not available",
-                "real_time_active": False,
-            }
-
-        try:
-            real_time_results = self._get_aggressive_real_time_info(query)
-
-            return {
-                "query": query,
-                "real_time_active": True,
-                "real_time_results_count": len(real_time_results),
-                "real_time_results": real_time_results[:3],  # Sample
-                "should_use_real_time": self._should_use_real_time(query),
-                "enhanced_query": self._enhance_query_for_tavily(query),
-                "timestamp": datetime.now().isoformat(),
-            }
-
-        except Exception as e:
-            return {"error": str(e), "real_time_active": False}
-
     def get_service_health(self) -> Dict[str, Any]:
-        """Get comprehensive service health information."""
-        health = {
+        """Return comprehensive service health information."""
+        health: Dict[str, Any] = {
             "vector_db_status": "healthy",
             "collection_count": 0,
             "embedding_service_status": "unknown",
@@ -872,10 +701,8 @@ class VectorDBService:
         }
 
         try:
-            # Check vector database
             health["collection_count"] = self.collection.count()
 
-            # Check embedding service
             if self.embedding_service:
                 try:
                     test_embedding = self.embedding_service.embed_query("test")
@@ -886,23 +713,19 @@ class VectorDBService:
                     health["embedding_service_status"] = f"error: {str(e)}"
                     health["errors"].append(f"Embedding service: {str(e)}")
 
-            # Check Tavily service
             if self.tavily_service:
                 try:
                     self.tavily_service.get_cache_stats()
                     health["tavily_service_status"] = "healthy"
                     health["real_time_integration_ready"] = True
-
                 except Exception as e:
                     health["tavily_service_status"] = f"error: {str(e)}"
                     health["errors"].append(f"Tavily service: {str(e)}")
             else:
                 health["tavily_service_status"] = "not_configured"
 
-            # Check hybrid search
             health["hybrid_search_ready"] = (
-                self.tfidf_vectorizer is not None
-                and self.tfidf_matrix is not None
+                self.tfidf_vectorizer is not None and self.tfidf_matrix is not None
             )
 
             if health["errors"]:
@@ -913,3 +736,32 @@ class VectorDBService:
             health["errors"].append(f"Vector DB: {str(e)}")
 
         return health
+
+    def test_real_time_integration(self, query: str) -> Dict[str, Any]:
+        """Diagnostic: test the Tavily real-time service directly."""
+        if not self.tavily_service:
+            return {"error": "Tavily service not available", "real_time_active": False}
+
+        try:
+            enhanced_query = query
+            if "strathmore" not in query.lower():
+                enhanced_query = f"Strathmore University {query}"
+
+            result = self.tavily_service.search(
+                query=enhanced_query,
+                max_results=3,
+                search_depth="basic",
+                include_answer=True,
+            )
+
+            return {
+                "query": query,
+                "enhanced_query": enhanced_query,
+                "real_time_active": True,
+                "real_time_results_count": len(result.get("results", [])),
+                "real_time_results": result.get("results", [])[:3],
+                "timestamp": datetime.now().isoformat(),
+            }
+
+        except Exception as e:
+            return {"error": str(e), "real_time_active": False}
