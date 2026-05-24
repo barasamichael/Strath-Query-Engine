@@ -457,10 +457,6 @@ class SmartQueryRouter:
         logger.info("Using SEMANTIC search processing")
 
         try:
-            # Intent was already classified in route_query; re-use context here
-            # so that semantic handler can pass it along in the result.
-            intent_info = self.intent_recognizer.recognize_intent(query, context)
-
             # Get semantic search results
             search_results = self.vector_db_service.multi_query_search(
                 query, top_k=15
@@ -468,7 +464,6 @@ class SmartQueryRouter:
 
             return {
                 "search_results": search_results,
-                "intent_info": intent_info,
                 "result_count": len(search_results),
                 "approach": "semantic",
                 "routing_info": {

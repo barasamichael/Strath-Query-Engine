@@ -4,30 +4,15 @@ import logging
 import numpy as np
 from pathlib import Path
 from typing import Dict, List, Union, Optional, Tuple, Any
-from enum import Enum
 
 from tqdm import tqdm
 from openai import OpenAI
 
 from config.settings import ROOT_DIR
+from services.intent_recognizer import IntentType
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("embeddings")
-
-
-class IntentType(str, Enum):
-    """Intent types for query classification."""
-
-    FACTUAL_QUERY = "factual_query"
-    PROCEDURAL_QUERY = "procedural_query"
-    EXPLANATION_QUERY = "explanation_query"
-    COMPARISON_QUERY = "comparison_query"
-    SCHEDULE_QUERY = "schedule_query"
-    NAVIGATION_QUERY = "navigation_query"
-    FEES_QUERY = "fees_query"
-    ADMISSION_QUERY = "admission_query"
-    GENERAL_CHAT = "general_chat"
-    OFF_TOPIC = "off_topic"
 
 
 class EmbeddingService:

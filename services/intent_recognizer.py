@@ -15,6 +15,10 @@ class IntentType(str, Enum):
     PROCEDURAL_QUERY = "procedural_query"
     EXPLANATION_QUERY = "explanation_query"
     COMPARISON_QUERY = "comparison_query"
+    SCHEDULE_QUERY = "schedule_query"
+    FEES_QUERY = "fees_query"
+    ADMISSION_QUERY = "admission_query"
+    NAVIGATION_QUERY = "navigation_query"
     OFF_TOPIC = "off_topic"
     CLARIFICATION = "clarification"
     FEEDBACK = "feedback"
@@ -33,6 +37,7 @@ class TopicCategory(str, Enum):
     EVENTS = "events"
     GENERAL = "general"
     SCHEDULE = "schedule"
+    NAVIGATION = "navigation"
     OTHER = "other"
 
 
@@ -59,19 +64,26 @@ Classify the user query and return a JSON object with exactly these keys:
 }
 
 INTENT TYPE OPTIONS:
-- factual_query        : Requests a fact (what, who, where, when, how many/much)
+- factual_query        : Requests a general fact (what, who, where, when, how many/much) not covered by a more specific type below
 - procedural_query     : Asks how to do something — steps, process, procedure
 - explanation_query    : Asks why, or requests an explanation/elaboration
 - comparison_query     : Compares options, differences, advantages, preferences
-- time_sensitive_query : Asks about current/upcoming schedules, timetables, today's classes
+- schedule_query       : Specifically about class timetables, lecture schedules, what classes happen on which day/time/room
+- fees_query           : Specifically about tuition fees, costs, payments, financial aid, scholarships, bursaries
+- admission_query      : Specifically about admission requirements, application process, entry qualifications, enrollment
+- navigation_query     : Asks where a place is on campus — office, lab, building, facility location
+- time_sensitive_query : Asks about current/upcoming events, announcements, deadlines, or real-time status (not schedules)
 - contextual_reference : Refers to something mentioned earlier (it, that, the previous, same)
 - clarification        : Asks to clarify or expand on a prior answer
 - feedback             : Expresses thanks, satisfaction, or acknowledgment (no question)
 - general_chat         : Purely conversational — greetings, small talk, no information request
 - off_topic            : Completely unrelated to Strathmore University or university life
 
+CLASSIFICATION PRIORITY: Prefer the most specific type. E.g., a question about tuition amounts is fees_query \
+not factual_query; a question about class timetables is schedule_query not time_sensitive_query.
+
 TOPIC OPTIONS:
-academics | admissions | fees | facilities | policies | student_life | events | schedule | general | other
+academics | admissions | fees | facilities | policies | student_life | events | schedule | navigation | general | other
 
 IN-SCOPE definition: Anything related to Strathmore University — its programs, operations, \
 facilities, policies, student life, schedules, fees, admissions, and campus events — is IN SCOPE. \
@@ -163,18 +175,24 @@ class IntentRecognizer:
     def _regex_fallback(self, query: str) -> Dict[str, Any]:
         """Minimal regex classifier used only when the LLM call fails."""
         q = query.lower()
-        if any(w in q for w in ["timetable", "schedule", "class today", "lecture today", "upcoming class"]):
-            intent = IntentType.TIME_SENSITIVE_QUERY
+        if any(w in q for w in ["timetable", "schedule", "class today", "lecture today", "upcoming class", "what time is", "when does class"]):
+            intent, topic = IntentType.SCHEDULE_QUERY, TopicCategory.SCHEDULE
+        elif any(w in q for w in ["fee", "tuition", "cost", "payment", "scholarship", "bursary", "how much"]):
+            intent, topic = IntentType.FEES_QUERY, TopicCategory.FEES
+        elif any(w in q for w in ["admission", "apply", "application", "entry requirement", "enroll"]):
+            intent, topic = IntentType.ADMISSION_QUERY, TopicCategory.ADMISSIONS
+        elif any(w in q for w in ["where is", "location of", "how do i get to", "which building", "directions to"]):
+            intent, topic = IntentType.NAVIGATION_QUERY, TopicCategory.NAVIGATION
         elif any(w in q for w in ["how do", "how to", "steps to", "procedure for", "process of"]):
-            intent = IntentType.PROCEDURAL_QUERY
+            intent, topic = IntentType.PROCEDURAL_QUERY, TopicCategory.GENERAL
         elif any(w in q for w in ["why", "explain", "reason", "elaborate", "what does it mean"]):
-            intent = IntentType.EXPLANATION_QUERY
+            intent, topic = IntentType.EXPLANATION_QUERY, TopicCategory.GENERAL
         elif any(w in q for w in ["compare", "difference between", "versus", " vs ", "better", "advantage"]):
-            intent = IntentType.COMPARISON_QUERY
+            intent, topic = IntentType.COMPARISON_QUERY, TopicCategory.GENERAL
         else:
-            intent = IntentType.FACTUAL_QUERY
+            intent, topic = IntentType.FACTUAL_QUERY, TopicCategory.GENERAL
 
-        result = self._make_result(intent, TopicCategory.GENERAL, 0.5)
+        result = self._make_result(intent, topic, 0.5)
         result["reasoning"] = "Regex fallback — LLM unavailable"
         return result
 

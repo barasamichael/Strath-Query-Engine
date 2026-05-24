@@ -126,11 +126,12 @@ class ServiceContainer:
                 intent_recognizer=self._services["intent_recognizer"],
             )
 
-            # Response generator (depends on vector_db, embeddings, tavily)
+            # Response generator (depends on vector_db, embeddings, tavily, intent_recognizer)
             self._services["response_generator"] = ResponseGenerator(
                 vector_db_service=self._services["vector_db"],
                 embedding_service=self._services["embedding"],
                 tavily_service=self._services["tavily"],
+                intent_recognizer=self._services["intent_recognizer"],
             )
 
             # Evaluator (depends on vector_db, intent_recognizer, response_generator)
@@ -656,11 +657,23 @@ async def enhanced_query(
                     include_real_time=True,
                 )
 
+        # Build conversation history for the response generator
+        history = None
+        if request.conversation_history:
+            history = [
+                {
+                    "role": "user" if msg.isUserMessage else "assistant",
+                    "content": msg.content,
+                }
+                for msg in request.conversation_history[-(request.max_history_messages):]
+            ]
+
         # Generate response using optimized response generator
         response_data = response_generator.generate_response(
             query=request.query,
             context_info=context_info,
             use_real_time=True,
+            conversation_history=history,
         )
 
         # Prepare response maintaining exact payload structure

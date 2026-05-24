@@ -1,25 +1,104 @@
-import os
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+import time
+import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
-import pytz
+from typing import Any, Dict, List, Optional, Tuple
 
+import numpy as np
+import pytz
 from openai import OpenAI
-from services.embeddings import EmbeddingService, IntentType
+
+from services.embeddings import EmbeddingService
+from services.intent_recognizer import IntentRecognizer, IntentType
 from services.vector_db import VectorDBService
 from services.tavily_service import TavilyService
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("response_generator")
 
-# Initialize OpenAI client
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# Intents that warrant checking real-time data only when explicit temporal
+# signals are also present in the query.  Schedule queries are always
+# real-time because the structured DB is local and cheap.
+_ALWAYS_REAL_TIME = {IntentType.SCHEDULE_QUERY}
+
+# Words/phrases that signal the user needs current-as-of-today data.
+_TEMPORAL_SIGNALS = {
+    "current", "latest", "recent", "today", "now", "right now",
+    "this semester", "current semester", "this year",
+    "deadline", "upcoming", "announcement", "news", "update",
+    "how much", "exact amount", "specific",
+}
+
+
+class _ResponseCache:
+    """
+    Semantic response cache backed by embedding similarity.
+    Entries expire after `ttl_seconds`; capacity is capped at `max_size`.
+    """
+
+    def __init__(
+        self,
+        similarity_threshold: float = 0.97,
+        ttl_seconds: int = 3600,
+        max_size: int = 128,
+    ):
+        self._threshold = similarity_threshold
+        self._ttl = ttl_seconds
+        self._max_size = max_size
+        # Each entry: (embedding: np.ndarray, response: dict, ts: float, intent: IntentType)
+        self._entries: List[Tuple] = []
+
+    def get(
+        self, query_embedding: np.ndarray, intent_type: IntentType
+    ) -> Optional[Dict]:
+        now = time.time()
+        for emb, response, ts, cached_intent in self._entries:
+            if now - ts > self._ttl:
+                continue
+            if cached_intent != intent_type:
+                continue
+            norm_q = np.linalg.norm(query_embedding)
+            norm_e = np.linalg.norm(emb)
+            if norm_q == 0 or norm_e == 0:
+                continue
+            sim = float(np.dot(query_embedding, emb) / (norm_q * norm_e))
+            if sim >= self._threshold:
+                logger.info("Cache hit (similarity=%.3f)", sim)
+                return response
+        return None
+
+    def put(
+        self,
+        query_embedding: np.ndarray,
+        response: Dict,
+        intent_type: IntentType,
+    ) -> None:
+        now = time.time()
+        # Evict expired entries first
+        self._entries = [
+            e for e in self._entries if now - e[2] < self._ttl
+        ]
+        if len(self._entries) >= self._max_size:
+            self._entries.pop(0)
+        self._entries.append((query_embedding, response, now, intent_type))
+
+
+def _estimate_tokens(text: str) -> int:
+    """Rough token estimate: 1 token ≈ 4 characters for English text."""
+    return max(1, len(text) // 4)
+
+
+# Maximum tokens we allow the context block to consume (leaves room for
+# the system prompt, user prompt wrapper, and the completion itself).
+_CONTEXT_TOKEN_BUDGET = 80_000
 
 
 class ResponseGenerator:
     """
-    Comprehensive response generator with aggressive real-time integration.
-    Direct and thorough - provides complete answers without fluff.
+    Generates answers by orchestrating intent recognition, structured
+    schedule lookup, Tavily real-time search, and vector retrieval,
+    then calling an LLM to synthesise a grounded, cited response.
     """
 
     def __init__(
@@ -28,177 +107,129 @@ class ResponseGenerator:
         embedding_service: Optional[EmbeddingService] = None,
         tavily_service: Optional[TavilyService] = None,
         structured_storage=None,
+        intent_recognizer: Optional[IntentRecognizer] = None,
     ):
         self.model = "gpt-4o-mini"
         self.temperature = 0.1
         self.max_tokens = 4096
 
-        # Initialize services
         self.vector_db = vector_db_service or VectorDBService()
         self.embedding_service = embedding_service or EmbeddingService()
         self.tavily_service = tavily_service
         self.structured_storage = structured_storage
+        self.intent_recognizer = intent_recognizer or IntentRecognizer()
+        self._client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-        # Initialize intent recognition
-        if hasattr(self.embedding_service, "initialize_intent_recognition"):
-            self.embedding_service.initialize_intent_recognition()
-
-        # Enhanced real-time indicators - more comprehensive
-        self.real_time_triggers = [
-            "current",
-            "latest",
-            "recent",
-            "today",
-            "now",
-            "this year",
-            "2024",
-            "2025",
-            "deadline",
-            "announcement",
-            "news",
-            "update",
-            "fee",
-            "tuition",
-            "cost",
-            "price",
-            "schedule",
-            "timetable",
-            "admission",
-            "application",
-            "registration",
-            "enrollment",
-            "when is",
-            "what time",
-            "how much",
-            "status",
-            "available",
-        ]
-
-        # Expanded time-sensitive topics that always need real-time data
-        self.always_real_time_topics = [
-            "fees",
-            "tuition",
-            "admission",
-            "deadlines",
-            "schedules",
-            "announcements",
-            "events",
-            "registration",
-            "applications",
-            "results",
-            "grades",
-            "timetables",
-            "payments",
-            "scholarships",
-            "bursaries",
-            "accommodation",
-            "orientation",
-        ]
+        self._cache = _ResponseCache()
 
         logger.info(
-            f"Enhanced ResponseGenerator initialized - Comprehensive mode: ACTIVE, "
-            f"Real-time mode: {'ACTIVE' if self.tavily_service else 'DISABLED'}"
+            "ResponseGenerator initialised — real-time: %s",
+            "ACTIVE" if self.tavily_service else "DISABLED",
         )
 
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
     def get_current_kenya_time(self) -> Tuple[str, str]:
-        """Get current time in Kenyan timezone."""
         try:
-            import pytz
-            from datetime import datetime
-
             kenya_tz = pytz.timezone("Africa/Nairobi")
-            current_time = datetime.now(kenya_tz)
-
-            formatted_time = current_time.strftime("%Y-%m-%d %H:%M:%S EAT")
-            iso_time = current_time.isoformat()
-
-            return formatted_time, iso_time
-
-        except Exception as e:
-            logger.error(f"Error getting Kenya time: {e}")
-            # Fallback to UTC
-            from datetime import datetime
-
-            utc_time = datetime.utcnow()
-            formatted_time = utc_time.strftime("%Y-%m-%d %H:%M:%S UTC")
-            iso_time = utc_time.isoformat()
-            return formatted_time, iso_time
+            now = datetime.now(kenya_tz)
+            return now.strftime("%Y-%m-%d %H:%M:%S EAT"), now.isoformat()
+        except Exception:
+            now = datetime.utcnow()
+            return now.strftime("%Y-%m-%d %H:%M:%S UTC"), now.isoformat()
 
     def generate_response(
         self,
         query: str,
         context_info: Optional[Dict[str, Any]] = None,
         use_real_time: bool = True,
+        conversation_history: Optional[List[Dict[str, str]]] = None,
     ) -> Dict[str, Any]:
         """
-        Generate comprehensive, direct response with aggressive real-time integration.
+        Generate a grounded, cited response for `query`.
+
+        Args:
+            query: The user's question.
+            context_info: Optional memory/context metadata from MemoryProcessor.
+            use_real_time: Allow Tavily queries (can be disabled in tests).
+            conversation_history: Prior turns as [{"role": "user"|"assistant", "content": "..."}].
         """
         try:
-            start_time = datetime.now()
+            start = time.time()
 
-            # Step 1: Intent recognition (fast)
-            intent_type, intent_confidence = self._quick_intent_recognition(
-                query
-            )
+            # 1. Intent classification via the shared IntentRecognizer
+            intent_info = self.intent_recognizer.recognize_intent(query)
+            intent_type: IntentType = intent_info["intent_type"]
+            intent_confidence: float = intent_info["confidence"]
 
-            # Step 2: Determine if we need real-time data
-            needs_real_time = self._aggressive_real_time_check(query, intent_type)
+            # 2. Cache lookup (requires a query embedding)
+            query_embedding = self.embedding_service.embed_query(query)
+            if query_embedding is not None:
+                cached = self._cache.get(query_embedding, intent_type)
+                if cached is not None:
+                    cached["cache_hit"] = True
+                    return cached
 
-            # Step 3: Query structured schedule store first for schedule queries
+            # 3. Structured schedule lookup (highest-priority source)
             structured_schedule = None
             if intent_type == IntentType.SCHEDULE_QUERY:
                 structured_schedule = self._query_schedule_structured(query)
 
-            # Step 4: Real-time data (skip for schedule queries that already have structured data)
+            # 4. Real-time data via Tavily (only when genuinely needed)
             real_time_data = None
-            if needs_real_time and self.tavily_service and use_real_time:
-                if not (intent_type == IntentType.SCHEDULE_QUERY and structured_schedule):
-                    real_time_data = self._get_real_time_data(query, intent_type)
+            if use_real_time and self.tavily_service:
+                if self._needs_real_time(query, intent_type):
+                    # Skip if structured schedule already covers this query
+                    if not (
+                        intent_type == IntentType.SCHEDULE_QUERY
+                        and structured_schedule
+                    ):
+                        real_time_data = self._fetch_real_time_parallel(
+                            query, intent_type
+                        )
 
-            # Step 5: Vector context — reduce limit when structured data covers the query
+            # 5. Vector context — shrink limit when richer sources exist
             if structured_schedule:
-                context_limit = 5
+                ctx_limit = 5
             elif real_time_data:
-                context_limit = 10
+                ctx_limit = 10
             else:
-                context_limit = 15
+                ctx_limit = 15
+            vector_context = self._get_vector_context(
+                query, intent_type, ctx_limit
+            )
 
-            retrieved_context = []
-            vector_context = self._get_vector_context(query, intent_type, context_limit)
-            retrieved_context.extend(vector_context)
-
-            # Step 6: Generate response
+            # 6. LLM synthesis
             response_content = self._generate_direct_response(
                 query=query,
                 intent_type=intent_type,
-                vector_context=retrieved_context,
+                vector_context=vector_context,
                 real_time_data=real_time_data,
                 structured_schedule=structured_schedule,
                 context_info=context_info,
+                conversation_history=conversation_history or [],
             )
 
-            # Step 5: Calculate metrics
-            processing_time = (datetime.now() - start_time).total_seconds()
-            print(processing_time)
+            processing_time = time.time() - start
 
-            approach = "comprehensive_vector_only"
+            approach = "vector_only"
             if structured_schedule and real_time_data:
                 approach = "structured_schedule_with_real_time"
             elif structured_schedule:
                 approach = "structured_schedule"
             elif real_time_data:
-                approach = "comprehensive_with_real_time"
+                approach = "vector_with_real_time"
 
             result = {
                 "response": response_content["content"],
                 "intent_type": intent_type.value,
                 "intent_confidence": intent_confidence,
-                "context_sources": len(retrieved_context),
+                "context_sources": len(vector_context),
                 "real_time_used": real_time_data is not None,
                 "real_time_results": (
-                    len(real_time_data.get("results", []))
-                    if real_time_data
-                    else 0
+                    len(real_time_data.get("results", [])) if real_time_data else 0
                 ),
                 "structured_schedule_used": structured_schedule is not None,
                 "structured_schedule_entries": (
@@ -209,6 +240,7 @@ class ResponseGenerator:
                 "processing_time": processing_time,
                 "token_usage": response_content.get("token_usage", {}),
                 "approach": approach,
+                "cache_hit": False,
                 "timestamp": datetime.now(
                     pytz.timezone("Africa/Nairobi")
                 ).strftime("%Y-%m-%d %H:%M:%S EAT"),
@@ -219,288 +251,166 @@ class ResponseGenerator:
                     r.get("url", "") for r in real_time_data.get("results", [])
                 ]
 
+            # Store in cache
+            if query_embedding is not None:
+                self._cache.put(query_embedding, result, intent_type)
+
             logger.info(
-                f"Comprehensive response generated in {processing_time:.2f}s - Real-time: {'YES' if real_time_data else 'NO'}"
+                "Response generated in %.2fs — approach=%s real_time=%s",
+                processing_time,
+                approach,
+                real_time_data is not None,
             )
             return result
 
         except Exception as e:
-            logger.error(f"Error generating response: {e}")
+            logger.error("Error generating response: %s", e)
             return {
-                "response": f"I encountered an error processing your question about {query}. Please try rephrasing or ask about something else.",
+                "response": (
+                    "I encountered an error processing your question. "
+                    "Please try rephrasing or ask about something else."
+                ),
                 "error": str(e),
                 "intent_type": "error",
                 "real_time_used": False,
+                "cache_hit": False,
             }
 
-    def _quick_intent_recognition(self, query: str) -> tuple[IntentType, float]:
-        """Fast intent recognition - pattern matching first, embedding fallback."""
-        try:
-            # Quick pattern-based recognition
-            query_lower = query.lower()
+    # ------------------------------------------------------------------
+    # Real-time decision logic
+    # ------------------------------------------------------------------
 
-            # Schedule queries
-            if any(
-                word in query_lower
-                for word in [
-                    "class",
-                    "schedule",
-                    "timetable",
-                    "when",
-                    "what time",
-                ]
-            ):
-                if any(
-                    word in query_lower
-                    for word in [
-                        "bics",
-                        "ics",
-                        "monday",
-                        "tuesday",
-                        "wednesday",
-                        "thursday",
-                        "friday",
-                    ]
-                ):
-                    return IntentType.SCHEDULE_QUERY, 0.9
+    def _needs_real_time(self, query: str, intent_type: IntentType) -> bool:
+        """
+        Return True only when the query genuinely requires current data.
 
-            # Fee/cost queries
-            if any(
-                word in query_lower
-                for word in [
-                    "fee",
-                    "cost",
-                    "tuition",
-                    "pay",
-                    "price",
-                    "scholarship",
-                ]
-            ):
-                return IntentType.FEES_QUERY, 0.9
+        Schedule queries always hit the structured DB (not Tavily) so they
+        are excluded here.  Fees and admission queries only trigger Tavily
+        when the user's phrasing contains explicit temporal signals.
+        """
+        if intent_type in _ALWAYS_REAL_TIME:
+            return False  # handled via structured_storage, not Tavily
 
-            # Admission queries
-            if any(
-                word in query_lower
-                for word in [
-                    "admission",
-                    "apply",
-                    "application",
-                    "entry",
-                    "requirement",
-                ]
-            ):
-                return IntentType.ADMISSION_QUERY, 0.9
-
-            # Procedural queries
-            if any(
-                phrase in query_lower
-                for phrase in [
-                    "how do i",
-                    "how to",
-                    "process",
-                    "procedure",
-                    "steps",
-                ]
-            ):
-                return IntentType.PROCEDURAL_QUERY, 0.8
-
-            # Factual queries (default)
-            return IntentType.FACTUAL_QUERY, 0.7
-
-        except Exception:
-            return IntentType.FACTUAL_QUERY, 0.5
-
-    def _aggressive_real_time_check(
-        self, query: str, intent_type: IntentType
-    ) -> bool:
-        """Aggressively determine if query needs real-time data."""
         query_lower = query.lower()
 
-        # Always use real-time for certain intents
-        if intent_type in [
-            IntentType.FEES_QUERY,
-            IntentType.ADMISSION_QUERY,
-            IntentType.SCHEDULE_QUERY,
-        ]:
+        # Explicit temporal signal in the query text
+        if any(signal in query_lower for signal in _TEMPORAL_SIGNALS):
             return True
 
-        # Always use real-time for certain topics
-        if any(topic in query_lower for topic in self.always_real_time_topics):
-            return True
-
-        # Check for explicit time indicators
-        if any(trigger in query_lower for trigger in self.real_time_triggers):
-            return True
-
-        # Check for current year or time references
-        current_year = str(datetime.now().year)
-        if (
-            current_year in query
-            or "this semester" in query_lower
-            or "current semester" in query_lower
-        ):
+        # Current year mentioned
+        if str(datetime.now().year) in query:
             return True
 
         return False
 
-    def _get_real_time_data(
+    # ------------------------------------------------------------------
+    # Data-fetching helpers
+    # ------------------------------------------------------------------
+
+    def _fetch_real_time_parallel(
         self, query: str, intent_type: IntentType
     ) -> Optional[Dict]:
-        """Get real-time data from Tavily with enhanced query strategies."""
+        """Build search queries and execute them in parallel via Tavily."""
         if not self.tavily_service:
             return None
 
-        try:
-            # Enhance query based on intent
-            enhanced_query = self._enhance_query_for_real_time(
-                query, intent_type
+        base_query = self._enhance_query_for_real_time(query, intent_type)
+        current_year = str(datetime.now().year)
+
+        searches = [base_query]
+        if intent_type == IntentType.FEES_QUERY:
+            searches.append(
+                f"Strathmore University tuition fees {current_year}"
+            )
+        elif intent_type == IntentType.ADMISSION_QUERY:
+            searches.append(
+                f"Strathmore University admission requirements {current_year}"
             )
 
-            # Use multiple search strategies
-            searches = [enhanced_query]
+        all_results: List[Dict] = []
 
-            # Add specific searches based on intent
-            if intent_type == IntentType.FEES_QUERY:
-                searches.append(
-                    f"Strathmore University tuition fees {datetime.now().year}"
+        def _search(q: str) -> List[Dict]:
+            try:
+                result = self.tavily_service.search(
+                    query=q,
+                    max_results=4,
+                    search_depth="basic",
+                    include_answer=True,
                 )
-                searches.append("Strathmore University fee structure payment")
+                return result.get("results", [])
+            except Exception as exc:
+                logger.warning("Tavily search failed for '%s': %s", q, exc)
+                return []
 
-            elif intent_type == IntentType.ADMISSION_QUERY:
-                searches.append(
-                    f"Strathmore University admission {datetime.now().year}"
-                )
-                searches.append(
-                    "Strathmore University application requirements"
-                )
+        with ThreadPoolExecutor(max_workers=len(searches)) as pool:
+            futures = {pool.submit(_search, q): q for q in searches[:2]}
+            for future in as_completed(futures):
+                all_results.extend(future.result())
 
-            elif intent_type == IntentType.SCHEDULE_QUERY:
-                searches.append(
-                    "Strathmore University academic calendar timetable"
-                )
+        if not all_results:
+            return None
 
-            # Execute searches and combine results
-            all_results = []
-            for search_query in searches[
-                :2
-            ]:  # Limit to 2 searches for cost control
-                try:
-                    result = self.tavily_service.search(
-                        query=search_query,
-                        max_results=4,  # Increased for more comprehensive data
-                        search_depth="basic",
-                        include_answer=True,
-                    )
-                    if result.get("results"):
-                        all_results.extend(result["results"])
-                except Exception as e:
-                    logger.warning(
-                        f"Tavily search failed for '{search_query}': {e}"
-                    )
-                    continue
+        # Deduplicate by URL, sort by relevance
+        seen: Dict[str, Dict] = {}
+        for r in all_results:
+            url = r.get("url", "")
+            if url and url not in seen:
+                seen[url] = r
 
-            if all_results:
-                # Deduplicate and rank results
-                unique_results = {}
-                for result in all_results:
-                    url = result.get("url", "")
-                    if url not in unique_results:
-                        unique_results[url] = result
+        sorted_results = sorted(
+            seen.values(),
+            key=lambda x: x.get("relevance_score", 0),
+            reverse=True,
+        )
 
-                # Sort by relevance score
-                sorted_results = sorted(
-                    unique_results.values(),
-                    key=lambda x: x.get("relevance_score", 0),
-                    reverse=True,
-                )
-
-                return {
-                    "results": sorted_results[:5],  # Increased to top 5 results
-                    "query": enhanced_query,
-                    "search_count": len(searches),
-                }
-
-        except Exception as e:
-            logger.error(f"Real-time data retrieval failed: {e}")
-
-        return None
+        return {"results": sorted_results[:5], "query": base_query}
 
     def _enhance_query_for_real_time(
         self, query: str, intent_type: IntentType
     ) -> str:
-        """Enhance query for better real-time search results."""
         query_lower = query.lower()
-
-        # Add Strathmore context if missing
         if "strathmore" not in query_lower:
             query = f"Strathmore University {query}"
-
-        # Add current year for relevance
         current_year = str(datetime.now().year)
-        if (
-            current_year not in query
-            and str(datetime.now().year - 1) not in query
-        ):
+        if current_year not in query and str(datetime.now().year - 1) not in query:
             query = f"{query} {current_year}"
-
-        # Add intent-specific terms
-        intent_enhancements = {
-            IntentType.FEES_QUERY: "tuition fees cost payment",
-            IntentType.ADMISSION_QUERY: "admission requirements application",
-            IntentType.SCHEDULE_QUERY: "timetable schedule academic calendar",
-            IntentType.PROCEDURAL_QUERY: "procedure process steps how to",
-            IntentType.FACTUAL_QUERY: "information details",
-        }
-
-        if intent_type in intent_enhancements:
-            enhancement = intent_enhancements[intent_type]
-            if not any(term in query_lower for term in enhancement.split()):
-                query = f"{query} {enhancement}"
-
         return query
 
     def _get_vector_context(
         self, query: str, intent_type: IntentType, limit: int
     ) -> List[Dict]:
-        """Get context from vector database with intent-based optimization."""
         try:
-            # Adjust search strategy based on intent
-            search_params = {
+            params: Dict[str, Any] = {
                 "query": query,
                 "top_k": limit,
                 "use_hybrid": True,
                 "include_real_time": True,
             }
-
-            # Intent-specific adjustments
             if intent_type == IntentType.SCHEDULE_QUERY:
-                search_params["filter_metadata"] = {"doc_type": "schedule"}
-
-            return self.vector_db.search(**search_params)
-
+                params["filter_metadata"] = {"doc_type": "schedule"}
+            return self.vector_db.search(**params)
         except Exception as e:
-            logger.error(f"Vector context retrieval failed: {e}")
+            logger.error("Vector context retrieval failed: %s", e)
             return []
 
     def _query_schedule_structured(self, query: str) -> Optional[Dict]:
-        """
-        Query the SQLite schedule store directly for schedule queries.
-        Returns the structured result dict if records are found, else None.
-        """
         if not self.structured_storage:
             return None
         try:
             result = self.structured_storage.query_with_natural_language(query)
             if result.get("success") and result.get("result_count", 0) > 0:
                 logger.info(
-                    f"Structured schedule query returned {result['result_count']} entries"
+                    "Structured schedule returned %d entries",
+                    result["result_count"],
                 )
                 return result
-            logger.info("Structured schedule query returned no results, will use vector fallback")
-            return None
         except Exception as e:
-            logger.warning(f"Structured schedule query failed: {e}")
-            return None
+            logger.warning("Structured schedule query failed: %s", e)
+        return None
+
+    # ------------------------------------------------------------------
+    # LLM synthesis
+    # ------------------------------------------------------------------
 
     def _generate_direct_response(
         self,
@@ -510,54 +420,38 @@ class ResponseGenerator:
         real_time_data: Optional[Dict],
         structured_schedule: Optional[Dict] = None,
         context_info: Optional[Dict] = None,
+        conversation_history: Optional[List[Dict[str, str]]] = None,
     ) -> Dict[str, Any]:
-        """Generate comprehensive, direct response without fluff."""
 
-        # Enhanced system instruction - COMPREHENSIVE BUT DIRECT
-        system_instruction = """You are a comprehensive, expert assistant for Strathmore University students, staff, and prospective students.
+        system_instruction = """You are an expert assistant for Strathmore University students, \
+staff, and prospective students.
 
-RESPONSE PHILOSOPHY:
-- Provide complete, thorough answers that anticipate follow-up questions
-- Be direct and get straight to the point - no fluff or introductory phrases
-- Give users everything they need to know in one response
-- Structure information logically from most important to supporting details
-- Include specific details, procedures, requirements, deadlines, and contact information when relevant
-- When you have current/real-time information, clearly indicate this and prioritize it
+RESPONSE RULES:
+- Answer directly and completely — no preamble or filler phrases.
+- If the provided sources contain the answer, use them and cite the source inline \
+  (e.g., "According to [Source 2]…" or "The schedule database shows…").
+- If the sources do NOT contain sufficient information to answer the question, say \
+  "I don't have reliable information about that" — do NOT invent fees, dates, names, \
+  or policies.
+- Prioritise sources in this order: SCHEDULE DATABASE > CURRENT/REAL-TIME > UNIVERSITY DOCS.
+- Include specific details (costs, deadlines, room numbers, contact info) when present in sources.
+- Use bullet points or numbered lists for procedures and multi-part answers.
+- Bold key facts (amounts, deadlines, room numbers).
 
-COMPREHENSIVE COVERAGE:
-- Answer the main question fully
-- Include related important information the user likely needs
-- Provide step-by-step procedures when applicable
-- Include relevant deadlines, costs, requirements, or prerequisites
-- Mention contact information, office locations, or next steps when helpful
-- Add context that helps users understand the bigger picture
-- Include alternative options or related services when relevant
+CITATION FORMAT: Reference sources inline as [Source N] or [Schedule DB] or [Real-time].
+"""
 
-INFORMATION HIERARCHY:
-1. Direct answer to the main question (with current data if available)
-2. Essential details (costs, deadlines, requirements, procedures)
-3. Step-by-step processes if applicable
-4. Contact information and locations
-5. Related information and alternatives
-6. Important notes, warnings, or exceptions
+        # --- Build context block with token budget enforcement ---
+        context_parts: List[str] = []
+        token_budget = _CONTEXT_TOKEN_BUDGET
 
-FORMATTING:
-- Use clear section breaks for different aspects of information
-- Use bullet points or numbered lists for procedures and requirements
-- Bold important information like deadlines, costs, and contact details
-- Organize complex information in logical sections
-
-Be thorough, informative, and complete while maintaining directness and clarity."""
-
-        # Enhanced context formatting with better organization
-        context_parts = []
-
-        # Structured schedule database — highest priority, exact data
         if structured_schedule and structured_schedule.get("results"):
-            context_parts.append("=== SCHEDULE DATABASE (AUTHORITATIVE) ===")
-            context_parts.append(f"SQL used: {structured_schedule.get('sql_query', 'direct query')}")
-            context_parts.append(f"Total entries found: {structured_schedule['result_count']}")
-            context_parts.append("")
+            header = (
+                f"=== SCHEDULE DATABASE (AUTHORITATIVE) ===\n"
+                f"SQL: {structured_schedule.get('sql_query', 'direct query')}\n"
+                f"Entries found: {structured_schedule['result_count']}\n"
+            )
+            rows: List[str] = []
             for entry in structured_schedule["results"][:30]:
                 parts = [
                     entry.get("class_group", ""),
@@ -573,151 +467,110 @@ Be thorough, informative, and complete while maintaining directness and clarity.
                     f"Type: {entry.get('session_type', '')}",
                     f"Semester: {entry.get('semester', '')}",
                 ]
-                context_parts.append(" | ".join(p for p in parts if p.strip()))
-            context_parts.append("")
+                rows.append(" | ".join(p for p in parts if p.strip()))
+            block = header + "\n".join(rows)
+            cost = _estimate_tokens(block)
+            if cost <= token_budget:
+                context_parts.append(block)
+                token_budget -= cost
 
-        # Real-time information (clearly marked and prioritized)
         if real_time_data and real_time_data.get("results"):
-            context_parts.append("=== CURRENT/LATEST INFORMATION ===")
-            for i, result in enumerate(real_time_data["results"][:4], 1):
-                title = result.get("title", "No title")
-                content = result.get("content", "No content")[
-                    :600
-                ]  # Increased content length
-                url = result.get("url", "No URL")
-                published = result.get("published_date", "")
-                context_parts.append(f"CURRENT SOURCE {i}: {title}")
-                if published:
-                    context_parts.append(f"Published: {published}")
-                context_parts.append(f"Content: {content}")
-                context_parts.append(f"URL: {url}")
-                context_parts.append("")
-
-        # Vector database context (organized by relevance)
-        if vector_context:
-            context_parts.append(
-                "=== UNIVERSITY DOCUMENTATION & KNOWLEDGE BASE ==="
-            )
-            for i, ctx in enumerate(
-                vector_context[:12], 1
-            ):  # Increased context
-                score = ctx.get("score", 0)
-                text = ctx.get("text", "")[:500]  # Increased text length
-                source = ctx.get("source", "Unknown source")
-                doc_type = ctx.get("metadata", {}).get("doc_type", "document")
-
-                context_parts.append(
-                    f"SOURCE {i} (relevance: {score:.2f}, type: {doc_type})"
+            header = "=== CURRENT/REAL-TIME INFORMATION ===\n"
+            snippets: List[str] = []
+            for i, r in enumerate(real_time_data["results"][:4], 1):
+                snippet = (
+                    f"[Source {i}] {r.get('title', '')}\n"
+                    f"Published: {r.get('published_date', 'unknown')}\n"
+                    f"{r.get('content', '')[:600]}\n"
+                    f"URL: {r.get('url', '')}"
                 )
-                context_parts.append(f"Source: {source}")
-                context_parts.append(f"Content: {text}")
-                context_parts.append("")
+                snippets.append(snippet)
+            block = header + "\n\n".join(snippets)
+            cost = _estimate_tokens(block)
+            if cost <= token_budget:
+                context_parts.append(block)
+                token_budget -= cost
+
+        if vector_context:
+            header = "=== UNIVERSITY DOCUMENTATION ===\n"
+            chunks: List[str] = []
+            for i, ctx in enumerate(vector_context[:12], 1):
+                chunk = (
+                    f"[Source {i}] (relevance={ctx.get('score', 0):.2f}, "
+                    f"type={ctx.get('metadata', {}).get('doc_type', 'doc')})\n"
+                    f"File: {ctx.get('source', 'unknown')}\n"
+                    f"{ctx.get('text', '')[:500]}"
+                )
+                cost = _estimate_tokens(chunk)
+                if cost > token_budget:
+                    break
+                chunks.append(chunk)
+                token_budget -= cost
+            if chunks:
+                context_parts.append(header + "\n\n".join(chunks))
 
         context_text = (
-            "\n".join(context_parts)
+            "\n\n".join(context_parts)
             if context_parts
-            else "Limited information available - provide general guidance."
+            else "No relevant sources found in the knowledge base for this query."
         )
 
-        # Enhanced user prompt with more specific instructions
-        user_prompt_parts = [
-            f"QUESTION: {query}",
-            f"INTENT TYPE: {intent_type.value}",
-            f"CONTEXT SOURCES: {len(vector_context)} university documents",
-        ]
-
-        if real_time_data:
-            user_prompt_parts.append(
-                f"REAL-TIME SOURCES: {len(real_time_data.get('results', []))} current sources available"
-            )
-
-        # Add intent-specific response requirements
+        # --- Intent-specific coverage checklist ---
         intent_requirements = {
-            IntentType.FEES_QUERY: """
-REQUIRED COVERAGE FOR FEES:
-- Exact fee amounts (current year)
-- Payment deadlines and schedules
-- Payment methods and procedures
-- Available scholarships or financial aid
-- Late payment consequences
-- Contact information for fee inquiries""",
-            IntentType.ADMISSION_QUERY: """
-REQUIRED COVERAGE FOR ADMISSIONS:
-- Entry requirements and qualifications
-- Application deadlines and procedures
-- Required documents and how to submit
-- Application fees and payment methods
-- Selection criteria and process
-- Important dates and timelines
-- Contact information for admissions office""",
-            IntentType.SCHEDULE_QUERY: """
-REQUIRED COVERAGE FOR SCHEDULES:
-- Specific class times and locations
-- Academic calendar dates
-- Registration periods
-- Exam schedules
-- Important academic deadlines
-- How to access personal timetables""",
-            IntentType.PROCEDURAL_QUERY: """
-REQUIRED COVERAGE FOR PROCEDURES:
-- Complete step-by-step process
-- Required documents or prerequisites
-- Where to go and who to contact
-- Timelines and deadlines
-- Costs involved (if any)
-- Alternative methods or options
-- What to do if problems arise""",
-            IntentType.FACTUAL_QUERY: """
-REQUIRED COVERAGE FOR FACTUAL QUESTIONS:
-- Complete answer with context
-- Related important information
-- Practical implications for the user
-- Where to find more detailed information
-- Contact details for further assistance""",
+            IntentType.FEES_QUERY: (
+                "Cover: exact amounts (if in sources), payment deadlines, "
+                "payment methods, scholarships/financial aid, late-payment policy, "
+                "contact for fee queries."
+            ),
+            IntentType.ADMISSION_QUERY: (
+                "Cover: entry requirements, application deadlines, required documents, "
+                "application fees, selection criteria, key dates, admissions contact."
+            ),
+            IntentType.SCHEDULE_QUERY: (
+                "Cover: specific class times, room numbers, instructor names. "
+                "List every matching entry from the schedule database."
+            ),
+            IntentType.PROCEDURAL_QUERY: (
+                "Cover: numbered step-by-step process, required documents, "
+                "where to go, timelines, costs, what to do if problems arise."
+            ),
+            IntentType.NAVIGATION_QUERY: (
+                "Cover: building name, floor/room number, directions from a landmark, "
+                "opening hours if relevant."
+            ),
+            IntentType.FACTUAL_QUERY: (
+                "Cover: complete answer with context, related useful information, "
+                "contact details for follow-up."
+            ),
         }
 
-        if intent_type in intent_requirements:
-            user_prompt_parts.append(intent_requirements[intent_type])
-
-        user_prompt_parts.extend(
-            [
-                "",
-                "AVAILABLE INFORMATION:",
-                context_text,
-                "",
-                """INSTRUCTIONS:
-Provide a comprehensive, complete response that covers all aspects the user needs to know. 
-Include specific details, procedures, costs, deadlines, and contact information when available.
-Structure the response clearly with sections if needed.
-If you have current/real-time information, clearly indicate this.
-Anticipate and answer likely follow-up questions.
-Be thorough but maintain directness - no introductory fluff.""",
-            ]
-        )
-
-        user_prompt = "\n".join(user_prompt_parts)
-
-        # Increase max tokens for more comprehensive responses
-        max_tokens_for_response = min(
-            self.max_tokens * 2, 4000
-        )  # Allow longer responses
-
-        # Generate response with enhanced parameters
-        messages = [
-            {"role": "system", "content": system_instruction},
-            {"role": "user", "content": user_prompt},
+        user_parts = [
+            f"QUESTION: {query}",
+            f"INTENT: {intent_type.value}",
         ]
+        if intent_type in intent_requirements:
+            user_parts.append(f"REQUIRED COVERAGE: {intent_requirements[intent_type]}")
+        user_parts += ["", "SOURCES:", context_text]
+
+        user_prompt = "\n".join(user_parts)
+
+        # --- Build message list, injecting conversation history ---
+        messages: List[Dict[str, str]] = [
+            {"role": "system", "content": system_instruction}
+        ]
+        if conversation_history:
+            # Keep last 10 turns to stay within budget
+            messages.extend(conversation_history[-10:])
+        messages.append({"role": "user", "content": user_prompt})
 
         try:
-            response = client.chat.completions.create(
+            response = self._client.chat.completions.create(
                 model=self.model,
                 messages=messages,
                 temperature=self.temperature,
-                max_tokens=max_tokens_for_response,  # Increased token limit
+                max_tokens=self.max_tokens,
             )
-
             content = response.choices[0].message.content
-
             return {
                 "content": content,
                 "token_usage": {
@@ -726,57 +579,37 @@ Be thorough but maintain directness - no introductory fluff.""",
                     "total_tokens": response.usage.total_tokens,
                 },
             }
-
         except Exception as e:
-            logger.error(f"Response generation failed: {e}")
+            logger.error("LLM call failed: %s", e)
             raise
 
-    def get_real_time_integration_stats(self) -> Dict[str, Any]:
-        """Get statistics about real-time integration usage."""
-        return {
-            "real_time_service_available": self.tavily_service is not None,
-            "real_time_triggers": len(self.real_time_triggers),
-            "always_real_time_topics": len(self.always_real_time_topics),
-            "real_time_model": "Tavily API",
-            "cache_enabled": (
-                hasattr(self.tavily_service, "search_cache")
-                if self.tavily_service
-                else False
-            ),
-            "cache_ttl": (
-                getattr(self.tavily_service, "cache_ttl", 0)
-                if self.tavily_service
-                else 0
-            ),
-        }
+    # ------------------------------------------------------------------
+    # Batch / stats helpers (unchanged interface, preserved for callers)
+    # ------------------------------------------------------------------
 
     def force_real_time_response(self, query: str) -> Dict[str, Any]:
-        """Force a response using only real-time data - for testing."""
         if not self.tavily_service:
             return {
-                "response": "Real-time service not available. Please configure TAVILY_API_KEY.",
+                "response": "Real-time service not available. Configure TAVILY_API_KEY.",
                 "error": "No real-time service",
                 "real_time_used": False,
             }
-
         try:
-            intent_type, confidence = self._quick_intent_recognition(query)
-            real_time_data = self._get_real_time_data(query, intent_type)
-
+            intent_info = self.intent_recognizer.recognize_intent(query)
+            intent_type: IntentType = intent_info["intent_type"]
+            real_time_data = self._fetch_real_time_parallel(query, intent_type)
             if not real_time_data:
                 return {
                     "response": f"No current information found for: {query}",
                     "real_time_used": True,
                     "real_time_results": 0,
                 }
-
             response_content = self._generate_direct_response(
                 query=query,
                 intent_type=intent_type,
-                vector_context=[],  # No vector context - pure real-time
+                vector_context=[],
                 real_time_data=real_time_data,
             )
-
             return {
                 "response": response_content["content"],
                 "real_time_used": True,
@@ -785,10 +618,9 @@ Be thorough but maintain directness - no introductory fluff.""",
                 "approach": "real_time_only",
                 "token_usage": response_content.get("token_usage", {}),
             }
-
         except Exception as e:
             return {
-                "response": f"Error in real-time processing: {str(e)}",
+                "response": f"Error in real-time processing: {e}",
                 "error": str(e),
                 "real_time_used": False,
             }
@@ -796,74 +628,62 @@ Be thorough but maintain directness - no introductory fluff.""",
     def batch_process_queries(
         self, queries: List[str], use_real_time: bool = True
     ) -> List[Dict[str, Any]]:
-        """Process multiple queries efficiently."""
         results = []
-
         for i, query in enumerate(queries, 1):
-            logger.info(f"Processing query {i}/{len(queries)}: {query[:50]}...")
-
+            logger.info("Processing query %d/%d: %s…", i, len(queries), query[:50])
             try:
-                result = self.generate_response(
-                    query, use_real_time=use_real_time
-                )
+                result = self.generate_response(query, use_real_time=use_real_time)
                 result["query_index"] = i
                 result["query"] = query
                 results.append(result)
-
             except Exception as e:
-                logger.error(f"Failed to process query {i}: {e}")
-                results.append(
-                    {
-                        "query_index": i,
-                        "query": query,
-                        "response": f"Processing failed: {str(e)}",
-                        "error": str(e),
-                        "real_time_used": False,
-                    }
-                )
-
+                logger.error("Failed to process query %d: %s", i, e)
+                results.append({
+                    "query_index": i,
+                    "query": query,
+                    "response": f"Processing failed: {e}",
+                    "error": str(e),
+                    "real_time_used": False,
+                })
         return results
 
     def get_response_stats(self) -> Dict[str, Any]:
-        """Get comprehensive response generator statistics."""
-        stats = {
+        stats: Dict[str, Any] = {
             "model": self.model,
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
+            "cache_entries": len(self._cache._entries),
             "services": {
-                "vector_db_available": self.vector_db is not None,
-                "embedding_service_available": self.embedding_service
-                is not None,
-                "tavily_service_available": self.tavily_service is not None,
+                "vector_db": self.vector_db is not None,
+                "embedding": self.embedding_service is not None,
+                "tavily": self.tavily_service is not None,
+                "intent_recognizer": self.intent_recognizer is not None,
             },
-            "real_time_config": {
-                "triggers": self.real_time_triggers,
-                "always_real_time_topics": self.always_real_time_topics,
-                "aggressive_mode": True,
-            },
-            "response_style": "comprehensive_direct",
         }
-
-        # Add service-specific stats
         if self.vector_db:
             try:
-                vector_stats = self.vector_db.get_collection_stats()
-                stats["vector_db_stats"] = vector_stats
-            except:
+                stats["vector_db_stats"] = self.vector_db.get_collection_stats()
+            except Exception:
                 pass
-
         if self.embedding_service:
             try:
-                embedding_stats = self.embedding_service.get_embedding_stats()
-                stats["embedding_stats"] = embedding_stats
-            except:
+                stats["embedding_stats"] = self.embedding_service.get_embedding_stats()
+            except Exception:
                 pass
-
         if self.tavily_service:
             try:
-                tavily_stats = self.tavily_service.get_cache_stats()
-                stats["tavily_stats"] = tavily_stats
-            except:
+                stats["tavily_stats"] = self.tavily_service.get_cache_stats()
+            except Exception:
                 pass
-
         return stats
+
+    def get_real_time_integration_stats(self) -> Dict[str, Any]:
+        return {
+            "real_time_service_available": self.tavily_service is not None,
+            "temporal_signals": len(_TEMPORAL_SIGNALS),
+            "always_real_time_intents": [i.value for i in _ALWAYS_REAL_TIME],
+            "real_time_model": "Tavily API",
+            "parallel_searches": True,
+            "semantic_cache_enabled": True,
+            "cache_size": len(self._cache._entries),
+        }
