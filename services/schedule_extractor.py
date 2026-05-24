@@ -10,6 +10,7 @@ import json
 import logging
 import hashlib
 import pandas as pd
+import openpyxl
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, Tuple
 from dataclasses import dataclass
@@ -66,7 +67,7 @@ class ScheduleExtractor:
 
         # Schedule detection patterns
         self.schedule_indicators = [
-            r"BICS\s+\d[ABC].*(?:Aug|Dec|Jan|May).*202\d",  # Class groups with semester
+            r"[A-Z]{2,6}\s+\d[A-Z].*(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec).*20\d{2}",  # Class groups with semester
             r"\d{1,2}[:\.]\d{2}[-–]\d{1,2}[:\.]\d{2}",  # Time ranges
             r"(?:Monday|Tuesday|Wednesday|Thursday|Friday)",  # Days
             r"(?:LT|Lab|Room|MSB|SLS|STMB|Lecture Theatre)",  # Room patterns
@@ -188,24 +189,187 @@ class ScheduleExtractor:
             return []
 
     def _extract_from_excel(self, file_path: Path) -> List[ScheduleEntry]:
-        """Extract schedule from Excel file with context awareness."""
+        """Extract schedule from Excel file using openpyxl for merged-cell awareness."""
         schedules = []
 
         try:
-            # Read all sheets
-            excel_file = pd.ExcelFile(file_path)
-
-            for sheet_name in excel_file.sheet_names:
+            wb = openpyxl.load_workbook(file_path, data_only=True)
+            for sheet_name in wb.sheetnames:
                 print(f"  📋 Processing sheet: {sheet_name}")
-                df = pd.read_excel(file_path, sheet_name=sheet_name)
-                sheet_schedules = self._extract_from_dataframe(df, sheet_name)
+                ws = wb[sheet_name]
+                rows = self._resolve_merged_cells(ws)
+                sheet_schedules = self._extract_from_rows(rows, sheet_name)
                 schedules.extend(sheet_schedules)
 
         except Exception as e:
-            logger.error(f"Error reading Excel file: {e}")
+            logger.error(f"openpyxl read failed ({e}), falling back to pandas")
+            try:
+                excel_file = pd.ExcelFile(file_path)
+                for sheet_name in excel_file.sheet_names:
+                    print(f"  📋 Processing sheet (pandas): {sheet_name}")
+                    df = pd.read_excel(file_path, sheet_name=sheet_name, header=None)
+                    rows = [list(row) for _, row in df.iterrows()]
+                    sheet_schedules = self._extract_from_rows(rows, sheet_name)
+                    schedules.extend(sheet_schedules)
+            except Exception as e2:
+                logger.error(f"Pandas fallback also failed: {e2}")
 
         print(f"✅ Extracted {len(schedules)} schedule entries from Excel")
         return schedules
+
+    def _resolve_merged_cells(self, ws) -> List[List]:
+        """
+        Build a flat grid from a worksheet, forward-filling merged cell values
+        so downstream code sees the value in every cell of a merged range.
+        """
+        merged_values: dict = {}
+        for merged_range in ws.merged_cells.ranges:
+            top_left_val = ws.cell(merged_range.min_row, merged_range.min_col).value
+            for r in range(merged_range.min_row, merged_range.max_row + 1):
+                for c in range(merged_range.min_col, merged_range.max_col + 1):
+                    merged_values[(r, c)] = top_left_val
+
+        rows = []
+        for r in range(1, ws.max_row + 1):
+            row_data = []
+            for c in range(1, ws.max_column + 1):
+                val = merged_values.get((r, c), ws.cell(r, c).value)
+                row_data.append(val)
+            if any(v is not None for v in row_data):
+                rows.append(row_data)
+        return rows
+
+    def _extract_from_rows(self, rows: List[List], source_name: str) -> List[ScheduleEntry]:
+        """
+        Extract schedule entries from a resolved list-of-rows.
+        Handles any program code, not just BICS.
+        """
+        schedules = []
+        current_class_group = None
+        current_semester = None
+
+        # Infer class group from sheet name as a fallback seed
+        sheet_seed = self._infer_class_group_from_name(source_name)
+
+        # Find the time-slot header row (first row with >1 time patterns)
+        time_slots: List[Optional[str]] = []
+        for row in rows[:15]:
+            candidate = self._extract_time_slots_from_row(row)
+            if sum(1 for t in candidate if t) > 1:
+                time_slots = candidate
+                break
+
+        print(f"    ⏰ Detected time slots: {[t for t in time_slots if t]}")
+
+        for row in rows:
+            try:
+                row_text = " ".join(str(v) for v in row if v is not None).strip()
+                if not row_text:
+                    continue
+
+                # Try to detect a class-group header in this row
+                class_info = self._detect_class_header_from_text(row_text)
+                if class_info:
+                    current_class_group, current_semester = class_info
+                    print(f"    📋 Found class group: {current_class_group} ({current_semester})")
+                    continue
+
+                # Use sheet-name seed if no header found yet
+                if current_class_group is None and sheet_seed:
+                    current_class_group = sheet_seed
+
+                # Try to detect a day row
+                day = self._detect_day_from_first_cell(row)
+                if day and current_class_group:
+                    print(f"      📅 Processing {day}:")
+                    for col_idx, cell_value in enumerate(row[1:], 1):
+                        if cell_value is None or not str(cell_value).strip():
+                            continue
+                        time_slot = (
+                            time_slots[col_idx - 1]
+                            if col_idx - 1 < len(time_slots)
+                            else None
+                        )
+                        if not time_slot:
+                            continue
+                        entry = self._parse_cell_content(
+                            str(cell_value),
+                            current_class_group,
+                            day,
+                            time_slot,
+                            current_semester or "Unknown",
+                        )
+                        if entry:
+                            schedules.append(entry)
+                            print(f"        ⏰ {time_slot}: {entry.subject} in {entry.room}")
+
+            except Exception as e:
+                logger.warning(f"Error processing row in {source_name}: {e}")
+                continue
+
+        return schedules
+
+    def _resolve_class_group_from_sheet(self, sheet_name: str) -> Optional[Tuple[str, str]]:
+        """Try to extract class group and semester from a sheet name."""
+        return self._detect_class_header_from_text(sheet_name)
+
+    def _infer_class_group_from_name(self, name: str) -> Optional[str]:
+        """Pull a bare class-group token (e.g. 'BICS 1A') from a sheet name."""
+        match = re.search(r"([A-Z]{2,6}\s*\d[A-Z])", name, re.IGNORECASE)
+        return match.group(1).upper() if match else None
+
+    def _detect_class_header_from_text(self, text: str) -> Optional[Tuple[str, str]]:
+        """
+        Generalised class-group header detection.
+        Supports any programme code (BICS, BCOM, BBIT, IT, MBA, BSC …).
+        """
+        sem = r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*(?:\s*[-–]\s*(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*)?\s+20\d{2}"
+
+        # "BICS 1A Aug-Dec 2025" or "BCOM 2B Jan-May 2024"
+        m = re.search(rf"([A-Z]{{2,6}}\s+\d[A-Z])\s+.*?({sem})", text, re.IGNORECASE)
+        if m:
+            return m.group(1).upper(), m.group(2)
+
+        # "1A Aug-Dec 2025" (programme implied by sheet name)
+        m = re.search(rf"\b(\d[A-Z])\b.*?({sem})", text, re.IGNORECASE)
+        if m:
+            return m.group(1).upper(), m.group(2)
+
+        # "Year 1 Aug-Dec 2025"
+        m = re.search(rf"((?:Year|Yr)\s+\d)\s+.*?({sem})", text, re.IGNORECASE)
+        if m:
+            return m.group(1), m.group(2)
+
+        return None
+
+    def _extract_time_slots_from_row(self, row: List) -> List[Optional[str]]:
+        """Extract time slots from a raw row (list of cell values)."""
+        result = []
+        for val in row:
+            if val is None:
+                result.append(None)
+                continue
+            val_str = str(val).strip()
+            found = False
+            for pattern in self.time_patterns:
+                m = re.search(pattern, val_str)
+                if m:
+                    sh, sm, eh, em = m.groups()
+                    result.append(f"{sh.zfill(2)}:{sm}-{eh.zfill(2)}:{em}")
+                    found = True
+                    break
+            if not found:
+                result.append(None)
+        return result
+
+    def _detect_day_from_first_cell(self, row: List) -> Optional[str]:
+        """Detect a weekday name in the first non-empty cell of a row."""
+        days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        first = next((str(v) for v in row if v is not None), "")
+        for day in days:
+            if day.lower() in first.lower():
+                return day
+        return None
 
     def _extract_from_pdf(self, file_path: Path) -> List[ScheduleEntry]:
         """Extract schedule from PDF using table detection."""
@@ -319,19 +483,9 @@ class ScheduleExtractor:
         return time_slots
 
     def _detect_class_header(self, row) -> Optional[Tuple[str, str]]:
-        """Detect if row contains class group header information."""
+        """Detect if a DataFrame row contains a class group header."""
         row_text = " ".join(str(cell) for cell in row if pd.notna(cell)).strip()
-
-        # Look for patterns like "BICS 1A Aug-Dec 2025"
-        class_pattern = r"(BICS\s+\d[ABC])\s+.*?((?:Aug|Dec|Jan|May).*?202\d)"
-        match = re.search(class_pattern, row_text, re.IGNORECASE)
-
-        if match:
-            class_group = match.group(1)
-            semester = match.group(2)
-            return class_group, semester
-
-        return None
+        return self._detect_class_header_from_text(row_text)
 
     def _detect_day_row(self, row) -> Optional[str]:
         """Detect if row represents a day of the week."""
@@ -394,11 +548,9 @@ class ScheduleExtractor:
     ) -> Optional[ScheduleEntry]:
         """Try to extract using regex patterns before using LLM."""
 
-        # Extract unit code
-        unit_code_match = re.search(
-            r"((?:ICS|HED|MATH|STAT)\s*\d{4})", content, re.IGNORECASE
-        )
-        unit_code = unit_code_match.group(1) if unit_code_match else None
+        # Extract unit code — any 2-5 uppercase letters followed by 3-4 digits
+        unit_code_match = re.search(r"\b([A-Z]{2,5}\s*\d{3,4})\b", content)
+        unit_code = unit_code_match.group(1).replace(" ", "") if unit_code_match else None
 
         # Extract room
         room = None
