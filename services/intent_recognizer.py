@@ -1,11 +1,12 @@
+import os
 import re
+import json
 import logging
 from enum import Enum
-from typing import Any
-from typing import Dict
-from typing import Optional
+from typing import Any, Dict, Optional
 
-logging.basicConfig(level=logging.INFO)
+from openai import OpenAI
+
 logger = logging.getLogger("intent_recognizer")
 
 
@@ -35,493 +36,165 @@ class TopicCategory(str, Enum):
     OTHER = "other"
 
 
+# Fast regex pre-filters for trivially unambiguous cases (no API call needed).
+_GREETING_RE = re.compile(
+    r"^(hi|hello|hey|greetings|howdy|good\s+(morning|afternoon|evening))\b",
+    re.IGNORECASE,
+)
+_FEEDBACK_RE = re.compile(
+    r"\b(thank(s|\s+you)|appreciate|helpful|makes\s+sense|understood|got\s+it|good\s+answer)\b",
+    re.IGNORECASE,
+)
+
+_SYSTEM_PROMPT = """You are an intent classification engine for KnowStrath, a question-answering \
+assistant for Strathmore University, Nairobi, Kenya.
+
+Classify the user query and return a JSON object with exactly these keys:
+{
+  "intent_type": "<see options below>",
+  "topic": "<see options below>",
+  "confidence": <float between 0.0 and 1.0>,
+  "is_off_topic": <true or false>,
+  "reasoning": "<one sentence>"
+}
+
+INTENT TYPE OPTIONS:
+- factual_query        : Requests a fact (what, who, where, when, how many/much)
+- procedural_query     : Asks how to do something — steps, process, procedure
+- explanation_query    : Asks why, or requests an explanation/elaboration
+- comparison_query     : Compares options, differences, advantages, preferences
+- time_sensitive_query : Asks about current/upcoming schedules, timetables, today's classes
+- contextual_reference : Refers to something mentioned earlier (it, that, the previous, same)
+- clarification        : Asks to clarify or expand on a prior answer
+- feedback             : Expresses thanks, satisfaction, or acknowledgment (no question)
+- general_chat         : Purely conversational — greetings, small talk, no information request
+- off_topic            : Completely unrelated to Strathmore University or university life
+
+TOPIC OPTIONS:
+academics | admissions | fees | facilities | policies | student_life | events | schedule | general | other
+
+IN-SCOPE definition: Anything related to Strathmore University — its programs, operations, \
+facilities, policies, student life, schedules, fees, admissions, and campus events — is IN SCOPE. \
+A query that mentions an external brand or entity in an educational context \
+(e.g., "Does Strathmore partner with Google?", "Can I use Google Scholar for research?") \
+is still IN SCOPE.
+
+OUT-OF-SCOPE: Queries with no connection to Strathmore University or university life \
+(sports results, entertainment, general world news, politics unrelated to higher education).
+
+Return only the JSON object. No markdown. No text outside the JSON."""
+
+
 class IntentRecognizer:
     def __init__(self):
-        self.intent_patterns = {
-            IntentType.FACTUAL_QUERY: [
-                r"what is",
-                r"what are",
-                r"who is",
-                r"who are",
-                r"when is",
-                r"when are",
-                r"where is",
-                r"where are",
-                r"how many",
-                r"how much",
-                r"is there",
-                r"^can",
-                r"^do",
-                r"^does",
-            ],
-            IntentType.PROCEDURAL_QUERY: [
-                r"how (do|can|to|should)",
-                r"what (steps|process)",
-                r"procedure for",
-                r"steps to",
-                r"guidelines for",
-                r"process of",
-                r"apply for",
-                r"register for",
-            ],
-            IntentType.EXPLANATION_QUERY: [
-                r"why",
-                r"explain",
-                r"reason",
-                r"elaborate",
-                r"clarify",
-                r"what happens if",
-                r"what does it mean",
-            ],
-            IntentType.COMPARISON_QUERY: [
-                r"compare",
-                r"difference between",
-                r"versus",
-                r"vs",
-                r"similarities between",
-                r"better",
-                r"prefer",
-                r"advantage",
-                r"disadvantage",
-            ],
-            IntentType.FEEDBACK: [
-                r"thank",
-                r"helpful",
-                r"appreciate",
-                r"good answer",
-                r"makes sense",
-                r"understood",
-                r"got it",
-                r"thanks",
-            ],
-            IntentType.GENERAL_CHAT: [
-                r"^hi\b",
-                r"^hello\b",
-                r"^hey\b",
-                r"^greetings",
-                r"^how are you",
-                r"nice to meet",
-                r"good (morning|afternoon|evening)",
-            ],
-            IntentType.TIME_SENSITIVE_QUERY: [
-                r"class(es)? (today|remaining|left)",
-                r"schedule (today|now|remaining)",
-                r"what('s| is) next",
-                r"upcoming (class|classes)",
-                r"what do I have (today|left|now)",
-                r"time(table)?",
-                r"(today|tomorrow|current) class(es)?",
-                r"class(es)? (for|on) today",
-            ],
-            IntentType.CONTEXTUAL_REFERENCE: [
-                r"(his|her|their) (predecessor|successor)",
-                r"what about (monday|tuesday|wednesday|thursday|friday)",
-                r"what about (it|that|this|them|those)",
-                r"(that|this) (course|class|program)",
-                r"(same|similar) (thing|process|requirement)",
-                r"for (it|that|this|them)",
-                r"about (it|that|this|them)",
-            ],
-        }
-
-        self.topic_keywords = {
-            TopicCategory.ACADEMICS: [
-                "course",
-                "program",
-                "degree",
-                "class",
-                "lecture",
-                "semester",
-                "faculty",
-                "credit",
-                "grade",
-                "gpa",
-                "academic",
-                "professor",
-                "exam",
-                "test",
-                "assignment",
-                "study",
-                "research",
-                "thesis",
-                "dissertation",
-                "graduation",
-            ],
-            TopicCategory.ADMISSIONS: [
-                "admission",
-                "application",
-                "apply",
-                "enrollment",
-                "entry",
-                "requirements",
-                "qualification",
-                "eligibility",
-                "transfer",
-                "accept",
-                "reject",
-                "offer",
-            ],
-            TopicCategory.FEES: [
-                "fee",
-                "tuition",
-                "payment",
-                "cost",
-                "expense",
-                "financial",
-                "scholarship",
-                "grant",
-                "loan",
-                "aid",
-                "funding",
-                "bursary",
-                "discount",
-                "installment",
-            ],
-            TopicCategory.FACILITIES: [
-                "library",
-                "lab",
-                "cafeteria",
-                "hostel",
-                "dorm",
-                "accommodation",
-                "residence",
-                "housing",
-                "wifi",
-                "internet",
-                "computer",
-                "sports",
-                "gym",
-                "field",
-                "court",
-            ],
-            TopicCategory.POLICIES: [
-                "policy",
-                "rule",
-                "regulation",
-                "code",
-                "conduct",
-                "discipline",
-                "penalty",
-                "attendance",
-                "absence",
-                "leave",
-                "suspension",
-                "expulsion",
-                "plagiarism",
-                "academic",
-                "misconduct",
-                "appeal",
-                "complaint",
-                "grievance",
-                "rights",
-                "obligations",
-                "deadline",
-                "extension",
-                "postponement",
-            ],
-            TopicCategory.STUDENT_LIFE: [
-                "club",
-                "society",
-                "association",
-                "activity",
-                "event",
-                "party",
-                "festival",
-                "ceremony",
-                "volunteer",
-                "service",
-                "community",
-                "mentoring",
-                "counseling",
-                "welfare",
-                "health",
-                "medical",
-                "career",
-                "job",
-                "internship",
-                "placement",
-            ],
-            TopicCategory.EVENTS: [
-                "orientation",
-                "graduation",
-                "convocation",
-                "seminar",
-                "workshop",
-                "conference",
-                "competition",
-                "exhibition",
-                "fair",
-                "ceremony",
-                "celebration",
-                "meeting",
-            ],
-            TopicCategory.SCHEDULE: [
-                "timetable",
-                "schedule",
-                "class",
-                "lecture",
-                "today",
-                "tomorrow",
-                "now",
-                "next",
-                "remaining",
-                "left",
-                "time",
-                "session",
-                "period",
-                "upcoming",
-                "week",
-                "day",
-                "morning",
-                "afternoon",
-                "evening",
-            ],
-        }
-
-        # Compile patterns for faster matching
-        self.compiled_intent_patterns = {}
-        for intent, patterns in self.intent_patterns.items():
-            self.compiled_intent_patterns[intent] = [
-                re.compile(pattern, re.IGNORECASE) for pattern in patterns
-            ]
+        self._client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
     def recognize_intent(
         self, query: str, conversation_context: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
-        Enhanced intent recognition that considers conversation context.
+        Classify the intent of a user query.
+
+        Uses regex fast-paths for unambiguous greetings and one-liner feedback,
+        then falls back to a gpt-4o-mini call with JSON-mode output for everything
+        else. If the LLM call fails, a lightweight regex fallback is used.
 
         Args:
-            query: User query
-            conversation_context: Optional context from memory processor
+            query: Raw user query string.
+            conversation_context: Reserved for future use (memory system disabled).
 
         Returns:
-            Intent information including context-aware adjustments
+            Dict with keys: intent_type, topic, confidence, requires_context,
+            and optionally reasoning.
         """
-        # Clean query
-        query = query.strip().lower()
+        query = query.strip()
+        if not query:
+            return self._make_result(IntentType.GENERAL_CHAT, TopicCategory.GENERAL, 1.0)
 
-        # Check for clarification intent first
-        clarification_indicators = [
-            "you mentioned",
-            "you said",
-            "what about",
-            "tell me more about",
-            "elaborate on",
-            "explain more",
-            "what do you mean by",
-            "can you clarify",
-        ]
+        # Fast path: pure greeting (single turn, short)
+        if _GREETING_RE.match(query) and len(query.split()) <= 6:
+            return self._make_result(IntentType.GENERAL_CHAT, TopicCategory.GENERAL, 0.97)
 
-        for indicator in clarification_indicators:
-            if indicator in query:
-                return {
-                    "intent_type": IntentType.CLARIFICATION,
-                    "confidence": 0.8,
-                    "topic": self._determine_topic(query),
-                    "requires_context": True,
-                }
+        # Fast path: pure feedback / acknowledgment (short, no question mark)
+        if _FEEDBACK_RE.search(query) and "?" not in query and len(query.split()) <= 10:
+            return self._make_result(IntentType.FEEDBACK, TopicCategory.GENERAL, 0.95)
 
-        # Check if conversation context indicates this should be contextual
-        if (
-            False
-            and conversation_context
-            and conversation_context.get("has_context")
-        ):
-            # If memory system detected references, boost contextual intent
-            if conversation_context.get("context_is_relevant"):
-                contextual_score = 0.0
-                for intent, patterns in self.compiled_intent_patterns.items():
-                    if intent == IntentType.CONTEXTUAL_REFERENCE:
-                        for pattern in patterns:
-                            if pattern.search(query):
-                                contextual_score = 0.9
-                                break
+        try:
+            return self._classify_with_llm(query)
+        except Exception as e:
+            logger.warning("LLM intent classification failed, using regex fallback: %s", e)
+            return self._regex_fallback(query)
 
-                if contextual_score > 0:
-                    return {
-                        "intent_type": IntentType.CONTEXTUAL_REFERENCE,
-                        "confidence": contextual_score,
-                        "topic": self._determine_topic(query),
-                        "requires_context": True,
-                        "memory_confidence": conversation_context.get(
-                            "relevance_score", 0
-                        ),
-                    }
+    def _classify_with_llm(self, query: str) -> Dict[str, Any]:
+        response = self._client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": _SYSTEM_PROMPT},
+                {"role": "user", "content": query},
+            ],
+            temperature=0.0,
+            max_tokens=200,
+            response_format={"type": "json_object"},
+        )
 
-        # Standard intent recognition
-        intent_scores = {}
-        for intent, patterns in self.compiled_intent_patterns.items():
-            score = 0
-            for pattern in patterns:
-                if pattern.search(query):
-                    score += 1
+        parsed = json.loads(response.choices[0].message.content)
 
-            if score > 0:
-                intent_scores[intent] = score / len(patterns)
-
-        # Determine most likely intent
-        if not intent_scores:
+        # Coerce to known enums, defaulting gracefully on unknown values
+        try:
+            intent_type = IntentType(parsed.get("intent_type", IntentType.FACTUAL_QUERY))
+        except ValueError:
             intent_type = IntentType.FACTUAL_QUERY
-            confidence = 0.5
-        else:
-            intent_type = max(intent_scores, key=intent_scores.get)
-            confidence = intent_scores[intent_type]
 
-        # Check if query is off-topic
-        is_off_topic, topic = self._check_if_off_topic(query)
+        try:
+            topic = TopicCategory(parsed.get("topic", TopicCategory.GENERAL))
+        except ValueError:
+            topic = TopicCategory.GENERAL
 
-        if is_off_topic:
+        confidence = max(0.0, min(1.0, float(parsed.get("confidence", 0.7))))
+
+        # LLM is authoritative on off-topic; override intent if flagged
+        if parsed.get("is_off_topic", False):
             intent_type = IntentType.OFF_TOPIC
-            confidence = 0.7
 
-        # Determine if this intent typically requires context
-        requires_context = intent_type in [
+        result = self._make_result(intent_type, topic, confidence)
+        result["reasoning"] = parsed.get("reasoning", "")
+        return result
+
+    def _regex_fallback(self, query: str) -> Dict[str, Any]:
+        """Minimal regex classifier used only when the LLM call fails."""
+        q = query.lower()
+        if any(w in q for w in ["timetable", "schedule", "class today", "lecture today", "upcoming class"]):
+            intent = IntentType.TIME_SENSITIVE_QUERY
+        elif any(w in q for w in ["how do", "how to", "steps to", "procedure for", "process of"]):
+            intent = IntentType.PROCEDURAL_QUERY
+        elif any(w in q for w in ["why", "explain", "reason", "elaborate", "what does it mean"]):
+            intent = IntentType.EXPLANATION_QUERY
+        elif any(w in q for w in ["compare", "difference between", "versus", " vs ", "better", "advantage"]):
+            intent = IntentType.COMPARISON_QUERY
+        else:
+            intent = IntentType.FACTUAL_QUERY
+
+        result = self._make_result(intent, TopicCategory.GENERAL, 0.5)
+        result["reasoning"] = "Regex fallback — LLM unavailable"
+        return result
+
+    @staticmethod
+    def _make_result(
+        intent_type: IntentType,
+        topic: TopicCategory,
+        confidence: float,
+    ) -> Dict[str, Any]:
+        requires_context = intent_type in {
             IntentType.CLARIFICATION,
             IntentType.CONTEXTUAL_REFERENCE,
             IntentType.EXPLANATION_QUERY,
-        ]
-
-        result = {
+        }
+        return {
             "intent_type": intent_type,
-            "confidence": confidence,
             "topic": topic,
+            "confidence": confidence,
             "requires_context": requires_context,
         }
 
-        # Add memory-related metadata if available
-        if False and conversation_context:
-            result["memory_available"] = conversation_context.get(
-                "has_context", False
-            )
-            result["memory_relevance"] = conversation_context.get(
-                "relevance_score", 0
-            )
-            if conversation_context.get("needs_clarification"):
-                result["intent_type"] = IntentType.CLARIFICATION
-                result["clarification_needed"] = True
-
-        return result
-
-    def _determine_topic(self, query: str) -> TopicCategory:
-        """Determine the topic category of a query."""
-        topic_counts = {}
-        query_words = set(re.findall(r"\b\w+\b", query.lower()))
-
-        for topic, keywords in self.topic_keywords.items():
-            matches = sum(
-                1
-                for keyword in keywords
-                if keyword in query_words or keyword in query.lower()
-            )
-            if matches > 0:
-                topic_counts[topic] = matches
-
-        if not topic_counts:
-            return TopicCategory.GENERAL
-
-        return max(topic_counts, key=topic_counts.get)
-
-    def _check_if_off_topic(self, query: str) -> tuple[bool, TopicCategory]:
-        """Check if a query is off-topic."""
-        is_off_topic = False
-        topic = self._determine_topic(query)
-
-        off_topic_indicators = [
-            "NASA",
-            "SpaceX",
-            "World Cup",
-            "Olympics",
-            "United Nations",
-            "President of USA",
-            "European Union",
-            "Marvel",
-            "Disney",
-            "Hollywood",
-            "Bitcoin",
-            "NFT",
-            "PlayStation",
-            "Xbox",
-            "Nintendo",
-            "Apple",
-            "Google",
-            "Tesla",
-            "Amazon",
-            "Facebook",
-        ]
-
-        education_terms = [
-            "student",
-            "university",
-            "college",
-            "course",
-            "professor",
-            "lecturer",
-            "class",
-            "degree",
-            "education",
-            "academic",
-            "school",
-            "faculty",
-            "study",
-            "campus",
-            "learning",
-            "dean",
-            "curriculum",
-            "semester",
-            "exam",
-            "library",
-            "assignment",
-            "graduation",
-            "admission",
-            "department",
-        ]
-
-        query_lower = query.lower()
-
-        has_off_topic_terms = any(
-            term.lower() in query_lower for term in off_topic_indicators
-        )
-        has_education_terms = any(
-            term in query_lower for term in education_terms
-        )
-
-        if has_off_topic_terms and not has_education_terms:
-            is_off_topic = True
-
-        return is_off_topic, topic
-
-    def should_use_conversation_context(
-        self, intent_info: Dict[str, Any]
-    ) -> bool:
-        """
-        Determine if conversation context should be used based on intent.
-
-        Args:
-            intent_info: Result from recognize_intent()
-
-        Returns:
-            bool: Whether to use conversation context
-        """
-        # Always use context for these intents
-        contextual_intents = [
-            IntentType.CLARIFICATION,
-            IntentType.CONTEXTUAL_REFERENCE,
-        ]
-
-        if intent_info["intent_type"] in contextual_intents:
-            return True
-
-        # Use context if memory system indicated it's available and relevant
-        if (
-            False
-            and intent_info.get("memory_available")
-            and intent_info.get("memory_relevance", 0) > 0.4
-        ):
-            return True
-
-        # Use context if intent requires it
-        if intent_info.get("requires_context", False):
-            return True
-
-        return False
+    def should_use_conversation_context(self, intent_info: Dict[str, Any]) -> bool:
+        return intent_info.get("requires_context", False)
