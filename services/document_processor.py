@@ -20,7 +20,7 @@ import nltk
 import numpy as np
 from tqdm import tqdm
 from nltk.tokenize import sent_tokenize
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import CSVLoader
 from langchain_community.document_loaders import JSONLoader
 from langchain_community.document_loaders import TextLoader
