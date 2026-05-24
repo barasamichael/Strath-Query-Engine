@@ -27,6 +27,7 @@ class ResponseGenerator:
         vector_db_service: Optional[VectorDBService] = None,
         embedding_service: Optional[EmbeddingService] = None,
         tavily_service: Optional[TavilyService] = None,
+        structured_storage=None,
     ):
         self.model = "gpt-4o-mini"
         self.temperature = 0.1
@@ -36,6 +37,7 @@ class ResponseGenerator:
         self.vector_db = vector_db_service or VectorDBService()
         self.embedding_service = embedding_service or EmbeddingService()
         self.tavily_service = tavily_service
+        self.structured_storage = structured_storage
 
         # Initialize intent recognition
         if hasattr(self.embedding_service, "initialize_intent_recognition"):
@@ -139,38 +141,53 @@ class ResponseGenerator:
                 query
             )
 
-            # Step 2: Determine if we need real-time data AGGRESSIVELY
-            needs_real_time = False and self._aggressive_real_time_check(
-                query, intent_type
-            )
+            # Step 2: Determine if we need real-time data
+            needs_real_time = self._aggressive_real_time_check(query, intent_type)
 
-            # Step 3: Parallel data retrieval
-            retrieved_context = []
+            # Step 3: Query structured schedule store first for schedule queries
+            structured_schedule = None
+            if intent_type == IntentType.SCHEDULE_QUERY:
+                structured_schedule = self._query_schedule_structured(query)
+
+            # Step 4: Real-time data (skip for schedule queries that already have structured data)
             real_time_data = None
-
             if needs_real_time and self.tavily_service and use_real_time:
-                # AGGRESSIVE real-time first
-                real_time_data = self._get_real_time_data(query, intent_type)
+                if not (intent_type == IntentType.SCHEDULE_QUERY and structured_schedule):
+                    real_time_data = self._get_real_time_data(query, intent_type)
 
-            # Always get comprehensive vector database context
-            context_limit = 10 if real_time_data else 15
-            vector_context = self._get_vector_context(
-                query, intent_type, context_limit
-            )
+            # Step 5: Vector context — reduce limit when structured data covers the query
+            if structured_schedule:
+                context_limit = 5
+            elif real_time_data:
+                context_limit = 10
+            else:
+                context_limit = 15
+
+            retrieved_context = []
+            vector_context = self._get_vector_context(query, intent_type, context_limit)
             retrieved_context.extend(vector_context)
 
-            # Step 4: Generate comprehensive response
+            # Step 6: Generate response
             response_content = self._generate_direct_response(
                 query=query,
                 intent_type=intent_type,
                 vector_context=retrieved_context,
                 real_time_data=real_time_data,
+                structured_schedule=structured_schedule,
                 context_info=context_info,
             )
 
             # Step 5: Calculate metrics
             processing_time = (datetime.now() - start_time).total_seconds()
             print(processing_time)
+
+            approach = "comprehensive_vector_only"
+            if structured_schedule and real_time_data:
+                approach = "structured_schedule_with_real_time"
+            elif structured_schedule:
+                approach = "structured_schedule"
+            elif real_time_data:
+                approach = "comprehensive_with_real_time"
 
             result = {
                 "response": response_content["content"],
@@ -183,13 +200,15 @@ class ResponseGenerator:
                     if real_time_data
                     else 0
                 ),
+                "structured_schedule_used": structured_schedule is not None,
+                "structured_schedule_entries": (
+                    structured_schedule.get("result_count", 0)
+                    if structured_schedule
+                    else 0
+                ),
                 "processing_time": processing_time,
                 "token_usage": response_content.get("token_usage", {}),
-                "approach": (
-                    "comprehensive_with_real_time"
-                    if real_time_data
-                    else "comprehensive_vector_only"
-                ),
+                "approach": approach,
                 "timestamp": datetime.now(
                     pytz.timezone("Africa/Nairobi")
                 ).strftime("%Y-%m-%d %H:%M:%S EAT"),
@@ -463,12 +482,33 @@ class ResponseGenerator:
             logger.error(f"Vector context retrieval failed: {e}")
             return []
 
+    def _query_schedule_structured(self, query: str) -> Optional[Dict]:
+        """
+        Query the SQLite schedule store directly for schedule queries.
+        Returns the structured result dict if records are found, else None.
+        """
+        if not self.structured_storage:
+            return None
+        try:
+            result = self.structured_storage.query_with_natural_language(query)
+            if result.get("success") and result.get("result_count", 0) > 0:
+                logger.info(
+                    f"Structured schedule query returned {result['result_count']} entries"
+                )
+                return result
+            logger.info("Structured schedule query returned no results, will use vector fallback")
+            return None
+        except Exception as e:
+            logger.warning(f"Structured schedule query failed: {e}")
+            return None
+
     def _generate_direct_response(
         self,
         query: str,
         intent_type: IntentType,
         vector_context: List[Dict],
         real_time_data: Optional[Dict],
+        structured_schedule: Optional[Dict] = None,
         context_info: Optional[Dict] = None,
     ) -> Dict[str, Any]:
         """Generate comprehensive, direct response without fluff."""
@@ -512,7 +552,31 @@ Be thorough, informative, and complete while maintaining directness and clarity.
         # Enhanced context formatting with better organization
         context_parts = []
 
-        # Real-time information first (clearly marked and prioritized)
+        # Structured schedule database — highest priority, exact data
+        if structured_schedule and structured_schedule.get("results"):
+            context_parts.append("=== SCHEDULE DATABASE (AUTHORITATIVE) ===")
+            context_parts.append(f"SQL used: {structured_schedule.get('sql_query', 'direct query')}")
+            context_parts.append(f"Total entries found: {structured_schedule['result_count']}")
+            context_parts.append("")
+            for entry in structured_schedule["results"][:30]:
+                parts = [
+                    entry.get("class_group", ""),
+                    entry.get("subject", ""),
+                ]
+                if entry.get("unit_code"):
+                    parts.append(f"({entry['unit_code']})")
+                parts += [
+                    entry.get("day", ""),
+                    f"{entry.get('start_time', '')}–{entry.get('end_time', '')}",
+                    f"Room: {entry.get('room', '')}",
+                    f"Instructor: {entry.get('instructor', '')}",
+                    f"Type: {entry.get('session_type', '')}",
+                    f"Semester: {entry.get('semester', '')}",
+                ]
+                context_parts.append(" | ".join(p for p in parts if p.strip()))
+            context_parts.append("")
+
+        # Real-time information (clearly marked and prioritized)
         if real_time_data and real_time_data.get("results"):
             context_parts.append("=== CURRENT/LATEST INFORMATION ===")
             for i, result in enumerate(real_time_data["results"][:4], 1):
